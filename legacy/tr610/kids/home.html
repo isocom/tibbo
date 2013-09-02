@@ -1,0 +1,83 @@
+<?
+  include "../../lib/common/common.tbh"
+  include "../../lib/common/html.tbh"
+  include "../../lib/common/settings.tbh"
+  include "../../lib/tr610/reader.tbh"
+?>
+<html>
+<HEAD>
+<META HTTP-EQUIV="Expires" CONTENT="Tue, 01 Jan 1980 1:00:00 GMT">
+<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+
+<style type="text/css">
+h1,h2,h3
+{
+color: #663144;
+font-family: arial, 'sans serif'; 
+text-align:left;
+}
+
+p,table,li,address
+{
+font-family: arial, 'sans serif'; 
+border-spacing: 1px
+}
+
+p,li,th,td
+{
+font-size: 100%;
+color: #3A161A
+}
+
+th {background-color:#E8ECED }
+
+body
+{
+background-color: #E0D6B8;
+}
+
+a
+{
+float:left;
+text-decoration:none;
+color:#E0D6B8;
+background-color:#663144;
+padding:0.2em 0.6em;
+}
+a:hover {background-color:#76A0B0;}
+li {display:inline;}
+</style>
+</HEAD>
+
+<body>
+<div>
+	<h1>Device status page</h1>
+	<h2>OTP Data</h2>
+	<table border=1>
+		<tr><td>Field</td><td>Value</td></tr>
+		<tr><td>OTP data programmed</td><td><? htmlWrite(commonBool2Str(settingsHasOTP)) ?></td></tr>
+		<tr><td>OTP Serial Number</td><td><? htmlWrite(settingsGetSerialNumber) ?></td></tr>
+		<tr><td>OTP Asset String</td><td><? htmlWrite(settingsGetOTPAsset) ?></td></tr>
+	</table>
+	<h2>Common settings</h2>
+	<table border=1>
+		<tr><td>Code</td><td>Meaning</td><td>Actual EEPROM value</td></tr>
+		<tr><td>SN</td><td>Serial Number</td><td><? htmlWrite(settingsGet("SN",0)) ?></td></tr>
+		<tr><td>RS</td><td>Rotate Screen</td><td><? htmlWrite(commonBool2Str(val(settingsGet("RS",0)))) ?></td></tr>
+		<tr><td>DH</td><td>Use DHCPd</td><td><? htmlWrite(commonBool2Str(val(settingsGet("DH",0)))) ?></td></tr>
+		<tr><td>IP</td><td>IP Address</td><td><? htmlWrite(settingsGet("IP",0)) ?></td></tr>
+		<tr><td>NM</td><td>Network Mask</td><td><? htmlWrite(settingsGet("NM",0)) ?></td></tr>
+		<tr><td>GW</td><td>Gateway</td><td><? htmlWrite(settingsGet("GW",0)) ?></td></tr>
+		<tr><td>SR</td><td>Swap Relays</td><td><? htmlWrite(commonBool2Str(val(settingsGet("SR",0)))) ?></td></tr>
+		<tr><td>PW</td><td>Password</td><td><? htmlWrite(settingsGet("PW",0)) ?></td></tr>
+		<tr><td>BP</td><td>BPDriver IP</td><td><? htmlWrite(settingsGet("BP",0)) ?></td></tr>
+		<tr><td>LC</td><td>Localization:</td><td><? htmlWrite(settingsGet("LC",0)) ?></td></tr>
+	</table>
+	<h2>EDziecko monitor</h2>
+	<table border=1>
+		<tr><td>Variable</td><td>Value</td></tr>
+		<tr><td>readerLastCardSN</td><td><? htmlWrite(readerLastCardSN) ?></td></tr>
+	</table>
+</div>
+</body>
+</html>

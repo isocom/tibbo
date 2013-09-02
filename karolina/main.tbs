@@ -1,0 +1,88 @@
+include "global.tbh"
+
+dim deviceMode as Mode = In
+dim setBlinking as boolean = false
+
+'====================================================================
+
+sub on_sys_init()
+  beep.divider = 10000
+end sub
+
+sub on_sys_timer()
+  device_watch_dog()
+  dhcp_proc_timer()
+  displayTimer()
+  keypadTimer()
+  
+  device_tr610_init()
+  
+  if setBlinking then
+    keypadLEDBlink(KP_BUTTON_LU, false)
+    keypadLEDBlink(KP_BUTTON_LD, false)
+    keypadLEDBlink(KP_BUTTON_RU, false)
+    keypadLEDBlink(KP_BUTTON_RD, false)
+    if deviceMode = In then keypadLEDBlink(KP_BUTTON_LU, true)
+    if deviceMode = Out then keypadLEDBlink(KP_BUTTON_LD, true)
+    if deviceMode = TempIn then keypadLEDBlink(KP_BUTTON_RU, true)
+    if deviceMode = TempOut then keypadLEDBlink(KP_BUTTON_RD, true)
+	setBlinking = false
+  end if
+end sub
+
+sub on_sock_data_arrival()
+  dhcp_proc_data()
+  dns_proc_data()
+  gae_proc_data()
+end sub
+
+sub on_ser_data_arrival()
+  readerProcess
+end sub
+
+sub on_sock_inband()
+  dim buf as string 'we will keep the data from the CMD buffer here
+  dim cmd as string 'this will keep individual inband commands
+  dim x as byte
+  
+  buf = sock.getinband 'we get entire CMD buffer contents into the s
+  x=instr(1, buf, chr(sock.endchar), 1)
+  while x<>0
+    cmd = left(buf, x-1) 's2 now contains a single inband command
+    buf = right(buf, len(buf)-x) 'cut out this command               
+    'process inband command in the s2 as needed
+	cmd_process(cmd)
+    'any more inband commands to process now?                
+    x=instr(1, buf, chr(sock.endchar), 1)
+  wend
+end sub
+
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+  dim key as KeypadKeyEnum = keypadOnKey(key_event, key_code)
+  
+  if key_event <> PL_KP_EVENT_PRESSED then exit sub
+  
+  if key = KP_BUTTON_LU then
+    displayMessage("Rozpoczecie pracy")
+	deviceMode = In
+  end if
+  if key = KP_BUTTON_LD then
+    displayMessage("Zakonczenie pracy")
+	deviceMode = Out
+  end if
+  if key = KP_BUTTON_RU then
+    displayMessage("Powrot z wyjscia`sluzbowego")
+	deviceMode = TempIn
+  end if
+  if key = KP_BUTTON_RD then
+    displayMessage("Wyjscie sluzbowe")
+	deviceMode = TempOut
+  end if
+  
+  setBlinking = true
+end sub
+
+sub callback_new_card_detected(byref card_number as string)
+  displayMessage("Odczytano karte:`" + card_number)
+  gae_send_card_detected1(card_number, deviceMode)
+end sub

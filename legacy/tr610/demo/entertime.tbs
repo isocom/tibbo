@@ -1,0 +1,127 @@
+include "global.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+
+const X = 30
+const Y = 40
+
+dim enteredTime as word = 15
+dim entertimeCounter as word = 0
+dim entertimeCardSN as string(MAX_RFID_SN_LEN) 'Ostatnio odczytany transponder
+
+public sub entertimeStart
+  entertimeCardSN = readerLastCardSN
+  enteredTime = 120
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "1. Ustaw czas...", 20, 10)
+  displayPrint(LCD_STD_FONT, "2. Zaakceptuj", 20, 20)
+
+  displayButton(KP_BUTTON_LU, BMP_CANCEL_XOFFSET)
+  displayButton(KP_BUTTON_LD, BMP_ENTER_XOFFSET)
+  displayButton(KP_BUTTON_RU, BMP_UP_XOFFSET)
+  displayButton(KP_BUTTON_RD, BMP_DOWN_XOFFSET)
+  
+  keypadLEDLit(KP_BUTTON_LU, true)
+  keypadLEDBlink(KP_BUTTON_LD, true)
+  keypadLEDLit(KP_BUTTON_RU, true)
+  keypadLEDLit(KP_BUTTON_RD, true)
+  showTime(enteredTime, X, Y, false)
+end sub
+
+public sub entertimeKP(keyEvent as pl_kp_event_codes, keyCode as byte)
+  dim key as KeypadKeyEnum = keypadKeyDecode(keyCode)
+  
+	  if key = KP_BUTTON_RU and keyEvent = PL_KP_EVENT_PRESSED then enteredTime = enteredTime + 5
+	  if key = KP_BUTTON_RD and keyEvent = PL_KP_EVENT_PRESSED then enteredTime = enteredTime - 5
+	  if key = KP_BUTTON_RU and keyEvent = PL_KP_EVENT_REPEATPRESSED then enteredTime = enteredTime + 30
+	  if key = KP_BUTTON_RD and keyEvent = PL_KP_EVENT_REPEATPRESSED then enteredTime = enteredTime - 30
+	  if enteredTime >= 60*15 then
+	    enteredTime = 60*15
+		keypadLEDLit(KP_BUTTON_RU, false)
+	  else
+		keypadLEDLit(KP_BUTTON_RU, true)
+	  end if
+	  if enteredTime <= 45 then
+	    enteredTime = 45
+		keypadLEDLit(KP_BUTTON_RD, false)
+	  else
+		keypadLEDLit(KP_BUTTON_RD, true)
+	  end if
+	  showTime(enteredTime, X, Y, false)
+      if key = KP_BUTTON_LU and keyEvent = PL_KP_EVENT_RELEASED then changeFSMState(Iddle)
+      if key = KP_BUTTON_LD and keyEvent = PL_KP_EVENT_RELEASED then
+        changeFSMState(PreparingToTan)
+      end if
+end sub
+
+public function entertimeGet as word
+  entertimeGet = enteredTime
+end function
+
+public sub entertimePreTan
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "Zapraszam.....", 10, 10)
+  displayPrint(LCD_STD_FONT, "Odliczam czas do", 10, 20)
+  displayPrint(LCD_STD_FONT, "rozpoczecia opalania", 10, 30)
+  relay1Open(100)
+  entertimeCounter = 600
+end sub
+
+public sub entertimeTan
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "Trwa opalanie...", 10, 10)
+  displayPrint(LCD_STD_FONT, "Odliczam czas do", 10, 20)
+  displayPrint(LCD_STD_FONT, "zakonczenia opalania", 10, 30)
+  relay2Open(enteredTime*10)
+  entertimeCounter = enteredTime*10
+end sub
+
+public sub entertimeTimer
+  if entertimeCounter = 0 then exit sub
+  if entertimeCounter mod 10 = 0 then showTime(entertimeCounter/10, X, Y, true)
+  if entertimeCounter mod 10 = 5 then showTime(entertimeCounter/10, X, Y, false)
+  if entertimeCounter = 1 and fsmState = PreparingToTan then changeFSMState(Tanning)
+  if entertimeCounter = 1 and fsmState = Tanning then changeFSMState(Iddle)
+  entertimeCounter = entertimeCounter - 1
+end sub
+
+sub showTime(time as word, x as byte, y as byte, blink as boolean)
+  dim b as byte
+  dim t as string
+
+  if blink and sys.timercount mod 2 = 0 then
+    lcd.setpixel(0, x+37, y+8)
+    lcd.setpixel(0, x+37, y+7)
+    lcd.setpixel(0, x+38, y+8)
+    lcd.setpixel(0, x+38, y+7)
+
+	lcd.setpixel(0, x+37, y+17)
+    lcd.setpixel(0, x+37, y+16)
+    lcd.setpixel(0, x+38, y+17)
+    lcd.setpixel(0, x+38, y+16)
+  else
+    lcd.setpixel(1, x+37, y+8)
+    lcd.setpixel(1, x+37, y+7)
+    lcd.setpixel(1, x+38, y+8)
+    lcd.setpixel(1, x+38, y+7)
+
+	lcd.setpixel(1, x+37, y+17)
+    lcd.setpixel(1, x+37, y+16)
+    lcd.setpixel(1, x+38, y+17)
+    lcd.setpixel(1, x+38, y+16)
+  end if
+	
+  romfile.open(LCD_CLOCK_DIGITS_FONT)
+  lcd.setfont(romfile.offset)
+  lcd.texthorizontalspacing = 2
+
+  b = time / 60
+  if b<10 then t = "0" + str(b) else t = str(b)
+  lcd.print(t, x+0, y+0)
+
+  b = time mod 60
+  if b<10 then t = "0" + str(b) else t = str(b)
+  lcd.print(t, x+42, y+0)
+end sub

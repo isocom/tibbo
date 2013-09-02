@@ -1,0 +1,16 @@
+'socket number used to handle BP Driver communication
+declare bpdriverSocketNumber as byte
+declare bpdriverUSASocketNumber as byte
+
+'this should be implemented inside program - it is library callback
+declare sub on_BPDriver_Datagram(byref datagram as string)
+declare sub on_BPDriver_Database(byref datagram as string)
+
+declare sub bpdriverInit(socketNumber as byte, usa as byte, byref targetIp as string, byref deviceType as string, byref serialNumber as string, byref signature as string, byref localization as string, byref assetInfo as string)
+declare sub bpdriverTimer
+declare sub bpdriverSend(byref s as string)
+declare sub bpdriverReadDatagram
+declare sub bpdriverReadUSA
+declare sub bpdriverSendBarCode(bc as string)
+declare sub bpdriverSendCardDetected(sn as string)
+declare sub bpdriverSendKey(key as string)

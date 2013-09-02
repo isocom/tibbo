@@ -1,0 +1,48 @@
+include "reader.tbh"
+
+include "../common/common.tbh"
+
+const READER_PORT_BR = 9600
+const STX=2
+const ETX=3
+const CR=13
+
+public dim readerLastCardSN as string(MAX_RFID_SN_LEN)
+dim readerBuffer as string(MAX_RFID_SN_LEN*2)
+dim readerNewCardFlag as boolean = false
+
+public sub readerInit
+'Initialize the com port for reader
+  ser.num = READER_PORT_NUM
+  ser.enabled = NO
+  ser.baudrate = ser.div9600/(READER_PORT_BR/9600)
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_NONE
+  ser.bits = PL_SER_BB_8	
+  if ser.rxbuffsize = 0 then
+    ser.rxbuffrq(1)
+    sys.buffalloc
+  end if
+  ser.enabled = YES
+end sub
+
+public sub readerProcess
+  dim Pos1, Pos2 as byte
+  dim s as string
+  s = ser.getdata(255)
+  readerBuffer = readerBuffer + s	
+  Pos1 = instr(1,readerBuffer,chr(STX),1)	
+  Pos2 = instr(1,readerBuffer,chr(CR),1)
+  if Pos2 > 0 and Pos1 > 0 and Pos2 > Pos1 then 
+    readerBuffer = mid(readerBuffer,pos1+1,pos2-pos1-1)
+	readerLastCardSN = reverse2(readerBuffer)
+	readerNewCardFlag = true
+    readerBuffer = ""
+  end if
+  if len(readerBuffer) > MAX_RFID_SN_LEN+4 then readerBuffer = ""
+end sub
+
+public function readerIsNewCardSNDetected as boolean
+  readerIsNewCardSNDetected = readerNewCardFlag
+  if readerNewCardFlag then readerNewCardFlag = false
+end function

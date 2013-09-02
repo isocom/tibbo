@@ -1,0 +1,7 @@
+const MAX_SER_CMD_LEN=64 'max length of serial commands
+const MAX_SER_RPL_LEN=255 'max length of serial replies
+
+declare ser_cmd_str as string(MAX_SER_CMD_LEN)
+
+declare sub ser_cmd_init
+declare sub ser_cmd_proc(byref cmd_str as string(MAX_SER_CMD_LEN),cmd_source_ser_port as word,error_mode as no_yes)

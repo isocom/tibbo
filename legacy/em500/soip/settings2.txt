@@ -1,0 +1,39 @@
+WATCH OUT: NUM_OF_SETTINGS const in <global.tbh> must be
+>= actial number of settings in this file!
+
+  1		2		3		4		5		6	7
+  Name	Type 	Members	Param1	Param2	Ini	Defval
+
+>>ON	S		1		0		8		I	^
+>>DN	S		1		0		8		I	^
+>>DH	B		1		0		1		A	0
+>>IP	D		1		4		4		I	1.0.0.1
+>>GI	D		1		4		4		A	1.0.0.1
+>>NM	D		1		4		4		A	0.0.0.0
+>>PW	S		1		0		6		A	^
+>>CT	B		1		0		99		A	5
+>>TP	B		1		0		1		A	0
+>>BU	B		1		0		1		A	0
+>>IB	B		1		0		1		A	0
+>>RM	B		1		0		2		A	0
+>>SF	B		1		0		1		A	0
+>>PN	W		1		0		65534	A	1001~1002~1003~1004
+>>CM	B		1		0		3		A	1
+>>DI	D		1		4		4		A	1.0.0.1
+>>DP	W		1		0		65535	A	1001
+>>ND	B		1		0		1		A	0
+>>SI	B		1		0		2		A	0
+>>FC	B		1		0		1		A	0
+>>DT	B		1		0		1		A	0
+>>DS	B		1		0		1		A	0
+>>BR	B		1		0		13		A	5
+>>PR	B		1		0		4		A	0
+>>BB	B		1		0		1		A	1
+>>MD	B		1		0		255		A	1
+>>SE	B		1		0		2		A	0
+>>EC	B		1		0		255		A	1
+>>RC	B		1		0		1		A	1
+>>OP	B		1		0		1		A	0
+>>NB	B		1		0		255		A	0
+>>ND	B		1		0		1		A	0
+<END>

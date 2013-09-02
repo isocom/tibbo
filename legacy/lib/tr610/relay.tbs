@@ -1,0 +1,91 @@
+include "relay.tbh"
+
+dim RELAY_IO1 as byte = 47
+dim RELAY_IO2 as byte = 48
+
+dim relayCounter1, relayCounter2 as word
+
+public sub relayInit
+  io.num = RELAY_IO1
+  io.enabled = YES
+  io.num = RELAY_IO2
+  io.enabled = YES
+end sub
+
+public sub relaySwap(swapRelays as no_yes)
+  if swapRelays = NO then
+    RELAY_IO1 = 47
+    RELAY_IO2 = 48
+  else
+    RELAY_IO1 = 48
+    RELAY_IO2 = 47
+  end if
+end sub
+
+public sub relay1Open(time as word)
+'open relay 1 for time period. time resolution is 100 ms, so 250 opens relay for 25 seconds
+  io.num = RELAY_IO1
+  io.state = LOW
+  relayCounter1 = time/5
+end sub
+
+public sub relay2Open(time as word)
+'open relay 2 for time period. time resolution is 100 ms, so 250 opens relay for 25 seconds
+  io.num = RELAY_IO2
+  io.state = LOW
+  relayCounter2 = time/5
+end sub
+
+public sub relayTimer
+'add it as part of on_sys_timer event to handle relay
+'we assume that system timer resolution is 10 ms
+  if relayCounter1 > 0 then
+    io.num = RELAY_IO1
+    if io.state = HIGH then io.state = LOW
+    relayCounter1 = relayCounter1 - 1
+    if relayCounter1 = 0 then io.state = HIGH
+  end if
+	
+  if relayCounter2 > 0 then
+    io.num = RELAY_IO2
+    if io.state = HIGH then io.state = LOW
+    relayCounter2 = relayCounter2 - 1
+    if relayCounter2 = 0 then io.state = HIGH
+  end if
+end sub
+
+public function relay1IsOpen as boolean
+  io.num = RELAY_IO1
+  if io.state = LOW then
+    relay1IsOpen = true
+  else
+    relay1IsOpen = false
+  end if
+end function
+
+public function relay2IsOpen as boolean
+  io.num = RELAY_IO2
+  if io.state = LOW then
+    relay2IsOpen = true
+  else
+    relay2IsOpen = false
+  end if
+end function
+
+public sub relay1SetState(s as boolean)
+  io.num = RELAY_IO1
+  if s then
+    io.state = LOW
+  else
+    io.state = HIGH
+  end if
+end sub
+
+public sub relay2SetState(s as boolean)
+  io.num = RELAY_IO2
+  if s then
+    io.state = LOW
+  else
+    io.state = HIGH
+  end if
+end sub

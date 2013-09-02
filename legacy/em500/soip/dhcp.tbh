@@ -1,0 +1,4 @@
+const SOCK_DHCP=0
+
+declare function dhcp_obtain(byref obtained_ip as string, byref obtained_gateway as string,
+byref obtained_netmask as string, byref obtained_lease_time as dword, device_name as string(32)) as ok_ng

@@ -1,0 +1,74 @@
+#define YES 1
+#define NO 0
+#define INSTANT_EVENT NO
+#define STORED_EVENT YES
+#define TABLE_DATA YES
+
+const FIELD_SEPARATOR=9
+const END_OF_LINE=13
+const NEW_LINE = 10
+const COMMAND_START = &h02
+const COMMAND_END = &h0d
+const COMMAND_PARAMETERS_SEPARATOR = &h17
+
+const ELEMENT_START = &h1c
+const ELEMENT_END = &h1d
+const ELEMENT_NAME_VALUE_SEPARATOR = &h1e
+const TABLE_NULL = &h1a
+const AGG_RECONN_TIME = 15
+const AGG_RPL_WAIT_TIME = 60
+const LS_MAIN_SCRIPT = "agg_script.txt"
+
+const MAX_ENTITY_NUM = 5		'Maximum lines allowed in the agg_script.txt
+const CONTEXT_NAME_LEN = 5		'Maximum length of the context name
+const RECORD_NAME_LEN = 13		'Maximum length of Record Name (applies to Variables, Events and Functions)
+const LS_RECORD_SZ = 64
+const EVENT_TYPE_NUM = 1		'Maximum number of events
+const EVENT_FIELD_NUM = 3
+const EVENT_FIELD_SZ = 5
+const TABLE_TYPE_NUM = 1
+const TABLE_FIELD_NUM = 2
+const TABLE_FIELD_SZ = 5
+const NUM_OF_VARIABLE_FLAG = 1
+const MAX_VARIABLE_NUM = 18
+
+enum global_state
+	LS_IDLE_STATE
+	LS_PROCESSING_COMMAND_STATE
+	LS_PROCESSING_EVENTS_STATE
+end enum
+
+enum agg_data_proc_phase
+	AGG_IDLE_PHASE
+	AGG_TYPE_PHASE
+	AGG_ID_PHASE
+	AGG_OP_PHASE
+	AGG_SGC_PHASE
+	AGG_ENTITY_PHASE
+	AGG_RECORD_PHASE
+	AGG_DATA_PHASE
+end enum
+
+declare sub AggreGateInit
+declare sub AggreGateConnected
+declare sub AggreGateProcessTimer
+declare sub ProcessCommand
+declare sub ProcessCurEvents(event_tbl as string)
+declare sub agg_adjust_record_file(tbl_name as string, proc_rec_num as word)
+
+const EVENT_TBL = "CR"
+
+declare event_in_proc as no_yes
+declare agg_rec_num as word
+declare event_found as boolean
+
+declare agg_connected as no_yes 
+
+#if INSTANT_EVENT = YES
+declare agg_event_buff as string
+#endif
+
+#if STORED_EVENT = YES
+declare cur_event_tbl as string(MAX_TBL_NAME_LEN)
+declare sub ProcessEvents
+#endif

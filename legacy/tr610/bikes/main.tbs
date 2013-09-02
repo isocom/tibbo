@@ -1,0 +1,144 @@
+include "global.tbh"
+
+include "../../lib/common/dhcp.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/common/settings.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+include "../../lib/ttsoft/tcptt.tbh"
+
+dim normalState as boolean = false
+
+dim fsmState as FSMStateEnum = Iddle
+dim fsmStateTimeout as short = -1
+
+public sub changeFSMState(newState as FSMStateEnum)
+  fsmStateTimeout = -1
+  select case fsmState
+    case Iddle
+      displayShowClock(false)
+  end select
+
+  select case newState
+    case Iddle
+      displayShowClock(true)
+	case ShowCardInfo
+	  displayClearAll
+    case UpdatePriceList
+	  displayPrintMsg("Ustawiam cennik nr "+str(asc(mid(devcommPriceList, 2, 1))), 0, 0, lcd.width, lcd.height, YES)
+	case ShowServiceInfo
+	  displayClearAll
+	  fsmStateTimeout = 600
+  end select
+
+  fsmState = newState
+end sub
+
+
+'====================================================================================================
+'====================================================================================================
+'====================================================================================================
+
+sub on_sys_init
+  settingsInit("TTD-0006-03r0015")
+  TR610DeviceInit(val(settingsGet("RS",0)), val(settingsGet("DH",0)), settingsGet("IP",0), settingsGet("NM",0), settingsGet("GW",0))
+  relaySwap(val(settingsGet("SR",0)))
+  displayOverrideLogo(true, "       ROWERES       ", settingsGet("LC", 0), "                     ")
+  tcpttInit(SERIAL_TCPTT)
+  javaserverInit
+  devcommInit
+
+  normalState = true
+  'changeFSMState(NoJavaCommunication)
+  changeFSMState(Iddle)
+end sub
+
+sub initPriceList
+  dim tc1 as word = sys.timercount / 100
+  if tc1>15 then exit sub
+  dim tc2 as word = sys.timercount mod 100
+
+  if tc2 > 90 and fsmState <> UpdatePriceList then
+	select case tc1
+	  case 0
+	    devcommPriceList = settingsGet("P0", 0)
+	  case 1
+	    devcommPriceList = settingsGet("P1", 0)
+	  case 2
+	    devcommPriceList = settingsGet("P2", 0)
+	  case 3
+	    devcommPriceList = settingsGet("P3", 0)
+	  case 4
+	    devcommPriceList = settingsGet("P4", 0)
+	  case 5
+	    devcommPriceList = settingsGet("P5", 0)
+	  case 6
+	    devcommPriceList = settingsGet("P6", 0)
+	  case 7
+	    devcommPriceList = settingsGet("P7", 0)
+	  case 8
+	    devcommPriceList = settingsGet("P8", 0)
+	  case 9
+	    devcommPriceList = settingsGet("P9", 0)
+	  case 10
+	    devcommPriceList = settingsGet("PA", 0)
+	  case 11
+	    devcommPriceList = settingsGet("PB", 0)
+	  case 12
+	    devcommPriceList = settingsGet("PC", 0)
+	  case 13
+	    devcommPriceList = settingsGet("PD", 0)
+	  case 14
+	    devcommPriceList = settingsGet("PE", 0)
+	  case 15
+	    devcommPriceList = settingsGet("PF", 0)
+	end select
+	if asc(devcommPriceList) <> 7 then exit sub
+    beep.play("B-B-B", PL_BEEP_NOINT)
+    changeFSMState(UpdatePriceList)
+  end if
+end sub
+
+'=============================================================
+sub on_sys_timer
+  initPriceList
+'  if sys.timercount > 20 and sys.timercount < 40 and fsmState <> UpdatePriceList then
+'    beep.play("B-B-B", PL_BEEP_NOINT)
+'    devcommPriceList = chr(7) + chr(0) + chr(1) + chr(0) + chr(1) + chr(0) + chr(0) + chr(0) + chr(0)
+'    changeFSMState(UpdatePriceList)
+'  end if
+
+'  if sys.timercount > 100 and sys.timercount < 120 and fsmState <> UpdatePriceList then
+'    beep.play("B-B-B", PL_BEEP_NOINT)
+'    devcommPriceList = chr(7) + chr(1) + chr(1) + chr(0) + chr(1) + chr(0) + chr(0) + chr(0) + chr(0)
+'    changeFSMState(UpdatePriceList)
+'  end if
+
+  if not normalState then exit sub
+
+  displayTimer
+  javaserverTimer
+  tcpttTimer
+  if tcpttCanSend then devcommQueryDevice
+
+  if fsmStateTimeout >= 0 then fsmStateTimeout = fsmStateTimeout - 1
+  if fsmStateTimeout = 0 then changeFSMState(Iddle)
+end sub
+
+'======== OBSLUGA PORTU SZEREGOWEGO ===========================
+sub on_ser_data_arrival
+  select case ser.num
+    case SERIAL_TCPTT
+	  tcpttProcess	  
+	  if tcpttIsNewFrameArrived then
+	    devcommProcessAnswer
+	  end if
+  end select
+end sub
+
+'======== OBSLUGA ROZKAZOW Z SIECI ============================
+sub on_sock_data_arrival
+  if sock.num = SOCKET_JAVA then javaserverReadDatagram
+end sub

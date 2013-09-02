@@ -1,0 +1,350 @@
+include "global.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/ttsoft/tcptt.tbh"
+include "../../lib/ttsoft/tcptt.tbh"
+include "../../lib/common/common.tbh"
+
+enum QueryType
+  ReaderGetState
+  ReaderReadBlockSig
+  ReaderReadBlockData
+  ReaderWriteBlockData
+  DeviceGetState
+  DeviceGetEvent
+end enum
+
+dim devcommFrameCounter as byte = 0 'licznik ramek
+dim devcommCardStatus as byte = 0 'czy karta w polu czytnika "szafkowego"
+public dim devcommLastQueryType as QueryType 'typ ostatniej ramki do czytnika, celem zrozumienia co sie dzieje
+dim devcommReaderLED as byte = 0 'miganie zielonej diody
+dim devcommCardReadState as byte 'poszczegolne kroki odczytu karty w kiosku (sygnatura, punkty, inkrementacja punktow, iddle)
+public dim devcommCurrentCard as string(16) 'aktualna karta w systemie
+dim devcommCurrentCardPoints as long 'aktualna wartoœæ punktow
+public dim devcommNewCardPoints as long = 0 'aktualna wartoœæ punktow
+dim devcommDeviceHasEvent as boolean = false 'czy urzadzenie event do odczytania
+dim devcommCurrentCardSector5 as string(16) 'aktualna zawartoœæ sektora 5
+public dim devcommCurrentBike as byte = 0 'aktualny adres roweru
+public dim devcommPriceList as string(64) 'aktualnie ustawiany cennik
+public dim devcommBikeStatus as boolean(33) 'aktualna sytuacja roweru false = brak, true = present
+public dim devcommDeviceOnline as boolean(33) 'czy dany czytnik odpowiedzial na pytanie
+
+declare sub queryReaderGetState
+declare sub queryDeviceGetState
+declare sub queryDeviceGetEvent
+declare sub processReaderGetState
+declare sub processReaderReadBlockSig
+declare sub processReaderReadBlockData
+declare sub processReaderWriteBlockData
+declare sub processDeviceGetState
+declare sub processDeviceGetEvent
+
+declare sub readCardInfo
+declare sub writePriceList
+
+
+public sub devcommInit
+  dim i as byte
+  for i = 0 to 32
+    devcommBikeStatus(i) = false
+	devcommDeviceOnline(i) = false
+  next i
+end sub
+
+public sub devcommQueryDevice
+  if devcommDeviceHasEvent then
+    queryDeviceGetEvent
+    exit sub
+  end if
+  
+  if fsmState = UpdatePriceList then
+    writePriceList
+    exit sub
+  end if
+  
+  devcommFrameCounter = devcommFrameCounter + 1
+
+  if fsmState = Iddle or fsmState = ShowServiceInfo then
+    if devcommFrameCounter mod 2 = 1 then
+	  queryDeviceGetState
+	else
+      queryReaderGetState
+	end if
+  end if
+  if fsmState = ShowCardInfo then readCardInfo
+end sub
+
+public sub devcommProcessAnswer
+  select case devcommLastQueryType
+    case ReaderGetState
+	  processReaderGetState
+	case ReaderReadBlockSig
+	  processReaderReadBlockSig
+	case ReaderReadBlockData
+	  processReaderReadBlockData
+	case ReaderWriteBlockData
+	  processReaderWriteBlockData
+    case DeviceGetState
+	  processDeviceGetState
+    case DeviceGetEvent
+	  processDeviceGetEvent
+  end select
+end sub
+
+'===============================================================================================
+
+function toHex(s as string, i as byte) as string
+  dim r as string(4)
+  r = hex(asc(mid(s, i, 1)))
+  if len(r) = 4 then
+    toHex = right(r, 2)
+  else
+    toHex = "0" + right(r, 1)
+  end if
+end function
+
+function decodeCardSN(sn as string) as string
+  if len(sn) = 4 then decodeCardSN = "M1" + toHex(sn, 1) + toHex(sn, 2) + toHex(sn, 3) + toHex(sn, 4)
+  if len(sn) = 7 then decodeCardSN = "Ul" + toHex(sn, 1) + toHex(sn, 2) + toHex(sn, 3) + toHex(sn, 4) + toHex(sn, 5) + toHex(sn, 6) + toHex(sn, 7)
+end function
+
+'===============================================================================================
+
+sub writePriceList
+  dim i as byte
+  for i = 1 to 32
+    if asc(mid(DEF_BIKES, i, 1)) <> 0 then
+	  tcpttSend(asc(mid(DEF_BIKES, i, 1)), devcommPriceList)
+	  commonSleepNoEvents(2)
+	  tcpttProcess
+	end if
+  next i
+  changeFSMState(Iddle)
+end sub
+
+'===============================================================================================
+'===============================================================================================
+'===============================================================================================
+
+sub queryReaderGetState
+  devcommReaderLED = devcommReaderLED + 1
+  tcpttSend(storageGetMainReaderId, chr(1)+chr(devcommReaderLED mod 2))
+  devcommLastQueryType = ReaderGetState
+end sub
+
+sub printServiceInfo
+  displayPrint(LCD_FIX_FONT, "123456789A - czytnik", 0, 0)
+  dim s1 as string = ""
+  dim s2 as string = ""
+  dim i as byte
+  for i = 1 to 10
+    if devcommBikeStatus(i) then
+      s1 = s1 + "*"
+	else
+      s1 = s1 + " "
+	end if
+	if devcommDeviceOnline(i) then
+	  s2 = s2 + "*"
+	else
+	  s2 = s2 + " "
+	end if	  
+  next i
+  displayPrint(LCD_FIX_FONT, s1 + " - rowery", 0, 10)
+  displayPrint(LCD_FIX_FONT, s2 + " - online", 0, 20)
+  displayPrint(LCD_FIX_FONT, "* OK,TRUE  ' ' ERR,NO", 0, 30)
+  displayPrint(LCD_FIX_FONT, "0-9 is shown on rs tx", 0, 40)
+  displayPrint(LCD_FIX_FONT, "0-9 remains no dev rx", 0, 50)  
+end sub
+
+sub printSingleStatus(final as no_yes)
+  dim i as byte = (devcommCurrentBike-1)*6
+'  displayPrint(LCD_FIX_FONT, " ", i, 10)
+'  displayPrint(LCD_FIX_FONT, " ", i, 20)
+  if final then    
+    if devcommBikeStatus(devcommCurrentBike) then
+      displayPrint(LCD_FIX_FONT, "*", i, 10)
+    else
+      displayPrint(LCD_FIX_FONT, " ", i, 10)
+    end if
+    if devcommDeviceOnline(devcommCurrentBike) then
+      displayPrint(LCD_FIX_FONT, "*", i, 20)
+    else
+      displayPrint(LCD_FIX_FONT, " ", i, 20)
+    end if
+  else
+    dim c as byte = asc("0") + sys.timercount mod 10
+    displayPrint(LCD_FIX_FONT, chr(c), i, 10)
+    displayPrint(LCD_FIX_FONT, chr(c), i, 20)
+  end if
+end sub
+
+sub processReaderGetState
+  dim frame as string = tcpttGetInternalFrame
+  
+  if devcommCardStatus = 0 and asc(frame) = 1 then
+    if asc(mid(frame, 2, 1)) = 1 then
+	  devcommCurrentCard = decodeCardSN(mid(frame, 4, 4))
+	end if
+    if asc(mid(frame, 2, 1)) = 3 then
+	  devcommCurrentCard = decodeCardSN(mid(frame, 4, 7))
+	end if
+	devcommCardReadState = 1 'ustaw wykryto karte
+	if devcommCurrentCard = "M19E2A46F0"
+    or devcommCurrentCard = "M19E8243F0"
+    or devcommCurrentCard = "M13E4445F0"
+    or devcommCurrentCard = "M1CE9D44F0"
+    or devcommCurrentCard = "M1DE3045F0"
+    or devcommCurrentCard = "M14E6142F0"
+    or devcommCurrentCard = "M11E1345F0"
+    or devcommCurrentCard = "M17E9645F0"
+    or devcommCurrentCard = "M18E9341F0"
+    or devcommCurrentCard = "M13E5643F0"
+    or devcommCurrentCard = "M11E1AD6F9"
+    or devcommCurrentCard = "M1BE8745F0"
+	then
+      changeFSMState(ShowServiceInfo)
+	  printServiceInfo
+	else
+      changeFSMState(ShowCardInfo)
+	  javaserverSendCardDetected(devcommCurrentCard)
+	end if
+  end if
+  
+  if devcommCardStatus = 1 and asc(frame) = 0 then
+    if fsmState <> ShowServiceInfo then changeFSMState(Iddle)
+	devcommCardReadState = 0 'ustaw brak karty
+	devcommCurrentCard = ""
+  end if
+  
+  devcommCardStatus = asc(frame)
+end sub
+
+'===============================================================================================
+
+sub queryDeviceGetState
+  devcommCurrentBike = devcommCurrentBike + 1
+  if devcommCurrentBike > len(DEF_BIKES) or mid(DEF_BIKES, devcommCurrentBike, 1) = chr(0) then devcommCurrentBike = 1
+  
+  dim d, m as word
+  dim s as byte
+  rtc.getdata(d, m, s) 'd od 2000-01-01
+  dim l as dword = (d-356*10)*24*60 + m
+  tcpttSend(asc(mid(DEF_BIKES, devcommCurrentBike, 1)), chr(6) + chr(l/(256*256)) + chr(l/256) + chr(l mod 256) + chr(0) + chr(d mod 7))
+  devcommLastQueryType = DeviceGetState
+  devcommDeviceOnline(devcommCurrentBike) = false
+  if fsmState = ShowServiceInfo then printSingleStatus(NO)
+end sub
+
+sub processDeviceGetState
+  dim frame as string = tcpttGetInternalFrame
+  
+  if asc(frame) = 1 then devcommDeviceHasEvent = true
+  if asc(mid(frame, 2, 1)) = 0 then
+    devcommBikeStatus(devcommCurrentBike) = false
+  else
+    devcommBikeStatus(devcommCurrentBike) = true
+  end if
+  devcommDeviceOnline(devcommCurrentBike) = true
+  if fsmState = ShowServiceInfo then printSingleStatus(YES)
+end sub
+
+'===============================================================================================
+
+sub queryDeviceGetEvent
+  if devcommCurrentBike > len(DEF_BIKES) or mid(DEF_BIKES, devcommCurrentBike, 1) = chr(0) then devcommCurrentBike = 1
+  tcpttSend(asc(mid(DEF_BIKES, devcommCurrentBike, 1)), chr(8))
+  devcommLastQueryType = DeviceGetEvent
+end sub
+
+sub processDeviceGetEvent
+  dim frame as string = tcpttGetInternalFrame
+  
+  if asc(frame) = 0 then javaserverSendBikeIn(decodeCardSN(mid(frame, 5, 4)),  msbToLong(mid(frame, 9, 4)))
+  if asc(frame) = 1 then javaserverSendBikeOut(decodeCardSN(mid(frame, 5, 4)), msbToLong(mid(frame, 9, 4)))
+
+  devcommDeviceHasEvent = false  
+end sub
+
+'===============================================================================================
+
+sub queryReaderReadBlockSig
+  tcpttSend(storageGetMainReaderId, chr(7)+chr(0)+chr(1)+chr(6))
+  devcommLastQueryType = ReaderReadBlockSig
+end sub
+
+sub processReaderReadBlockSig
+  dim frame as string = tcpttGetInternalFrame
+
+  if asc(frame) = 0 then
+	devcommCardReadState = 2 'odczytano blok z sygnatura
+  else
+    beep.play("BBB-B-BBB-BBB", PL_BEEP_NOINT)
+    devcommCardReadState = 255
+  end if
+  
+  if mid(frame, 2, 6) <> "TTSOFT" then
+    displayPrint(LCD_FIX_FONT, "Karta spoza systemu", 3, 47)
+    devcommCardReadState = 255 'koniec badania karty, czekaj tylko az zostanie ona zabrana z pola
+  end if
+end sub
+
+'===============================================================================================
+
+sub queryReaderReadBlockData
+  tcpttSend(storageGetMainReaderId, chr(7)+chr(0)+chr(1)+chr(5))
+  devcommLastQueryType = ReaderReadBlockData
+end sub
+
+sub processReaderReadBlockData
+  dim frame as string = tcpttGetInternalFrame
+
+  if asc(frame) = 0 then
+    devcommCurrentCardPoints = msbToLong(mid(frame, 14, 4))
+	devcommCurrentCardSector5 = mid(frame, 2, 16)
+	dim st as byte = asc(devcommCurrentCardSector5)
+    if (st and &h10) = &h10 then displayPrint(LCD_FIX_FONT, "Rower wypozyczony", 3, 37)
+    if (st and &h10) = &h00 then displayPrint(LCD_FIX_FONT, "Rower oddany", 3, 37)
+    displayPrint(LCD_FIX_FONT, "Masz " + lstri(devcommCurrentCardPoints) + " pkt.", 3, 47)
+	javaserverSendPoints(devcommCurrentCard, devcommCurrentCardPoints)
+	devcommCardReadState = 3 'odczytano sektor z danymi
+  else
+    beep.play("BBB-B-BBB-BBB", PL_BEEP_NOINT)
+    devcommCardReadState = 255
+  end if
+end sub
+
+'===============================================================================================
+
+sub queryReaderWriteBlockData
+  dim p as long = devcommNewCardPoints + devcommCurrentCardPoints
+  devcommCurrentCardSector5 = mid(devcommCurrentCardSector5, 1, 12)
+  devcommCurrentCardSector5 = devcommCurrentCardSector5 + chr(0/(256*256*256)) + chr(p/(256*256)) + chr(p/256) + chr(p mod 256)
+  tcpttSend(storageGetMainReaderId, chr(6)+chr(0)+chr(1)+chr(5)+devcommCurrentCardSector5)
+  devcommLastQueryType = ReaderWriteBlockData
+  'devcommNewCardPoints = 0
+end sub
+
+sub processReaderWriteBlockData
+  dim frame as string = tcpttGetInternalFrame  
+
+  if asc(frame) = 0 then  
+    displayPrint(LCD_FIX_FONT, "Masz " + lstri(devcommCurrentCardPoints+devcommNewCardPoints) + " pkt.   ", 3, 47)
+    displayPrint(LCD_FIX_FONT, "Dodano " + lstri(devcommNewCardPoints) + " pkt.", 3, 57)
+    beep.play("B-B-*B-*B-BBB", PL_BEEP_NOINT)
+	javaserverSendPointsAdded(devcommCurrentCard)
+	devcommCardReadState = 255 'zapisano sektor z danymi
+	devcommNewCardPoints = 0
+  else
+    devcommCardReadState = 255
+    beep.play("BBB-B-BBB-BBB", PL_BEEP_NOINT)
+  end if
+end sub
+
+'===============================================================================================
+
+sub readCardInfo
+  if devcommCardReadState = 1 then queryReaderReadBlockSig   'odczytaj sygnature
+  if devcommCardReadState = 2 then queryReaderReadBlockData  'blok z danymi
+  if devcommCardReadState = 3 and devcommNewCardPoints = 0 then queryReaderGetState  'odczytaj blok z danymi
+  if devcommCardReadState = 3 and devcommNewCardPoints <> 0 then queryReaderWriteBlockData  ' zapisz blok z danymi
+  if devcommCardReadState = 255 then queryReaderGetState     'tylko czekaj na zabranie karty, operacje zakonczono
+end sub

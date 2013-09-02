@@ -1,0 +1,9 @@
+declare sub relayInit
+declare sub relaySwap(swapRelays as no_yes)
+declare sub relay1Open(time as word)
+declare sub relay2Open(time as word)
+declare sub relayTimer
+declare function relay1IsOpen as boolean
+declare function relay2IsOpen as boolean
+declare sub relay1SetState(s as boolean)
+declare sub relay2SetState(s as boolean)

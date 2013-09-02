@@ -1,0 +1,8 @@
+declare sub tcpttInit(portNum as byte)
+declare sub tcpttTimer
+declare sub tcpttSend(id as byte, frame as string)
+declare sub tcpttProcess
+declare function tcpttIsNewFrameArrived as boolean
+declare function tcpttGetInternalFrame as string
+declare function tcpttCanSend as boolean
+'declare function tcpttLastTransmissionHadError as boolean

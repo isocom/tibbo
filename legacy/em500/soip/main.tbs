@@ -1,0 +1,549 @@
+include "global.tbh"
+
+dim index_page_socknum as byte
+
+
+dim divider_by_2 as no_yes
+dim dsr_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+dim dtr_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+dim cts_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+dim port_in_use(MAX_NUM_SERIAL_PORTS) as no_yes
+
+declare html_reboot_flag as no_yes
+
+'================================================================================
+sub on_sys_init()
+
+	boot()
+
+end sub
+
+
+'================================================================================
+sub on_button_pressed()
+	dim stg_op_result as en_stg_status
+	dim i,j as word
+
+	if login_mode<>CMD_MODE_SERIAL then
+			login(CMD_MODE_SERIAL,"S",0)
+			enter_ser_prog_mode(0)
+	else
+		'already in the serial programming mode, is this a quick init attempt?
+		
+		'for this, button had to be kept depressed for a while first
+		if button.time<10 then exit sub
+		
+		'now we need to wait for a while -- the button must be "long-pressed"
+		i=sys.timercount
+		while button.pressed=YES
+			j=sys.timercount
+			'the code below takes into the account that the sys.timercount can wrap around
+			if j>=i then
+				if j-i>=BUTTON_CONST_QUICK_INIT then
+					goto initialize
+				end if
+			else
+				if  (65536-i)+j>=BUTTON_CONST_QUICK_INIT then
+initialize:			'OK, initialize now!
+					pat.play(PAT_GAP,PL_PAT_CANINT)
+					if settings_restore_def(YES)<>EN_STG_STATUS_OK then
+						quick_init_flag=QI_NG
+						#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202 or PLATFORM_ID=EM1206
+							beep.play(BEEP_LONG,PL_BEEP_CANINT)
+						#endif
+					else
+						quick_init_flag=QI_OK
+						#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202 or PLATFORM_ID=EM1206
+							beep.play(BEEP_SHORT,PL_BEEP_CANINT)
+						#endif
+					end if	
+					exit sub
+				end if
+			end if
+			doevents 
+		wend
+	end if
+end sub
+
+
+'================================================================================
+sub on_pat()
+
+	dim channel as byte
+
+	pat_canint=YES
+	
+	#if LED_INDICATION=0
+		if pat.channel=0 then
+			can_show_data_transmission(0)=NO
+			if login_mode=CMD_MODE_SERIAL then
+				select case quick_init_flag
+				case QI_NULL:
+					pat.play(PAT_BLINK_BOTH_IN_TURNS,PL_PAT_CANINT)
+				case QI_OK:
+					pat.play(PAT_LONG_GREEN,PL_PAT_CANINT)
+					quick_init_flag=QI_NULL
+				case QI_NG:
+					pat.play(PAT_LONG_RED,PL_PAT_CANINT)
+					quick_init_flag=QI_NULL
+				end select
+				exit sub
+			end if
+		end if
+	#else
+		if pat.channel<>0 then
+			if port_in_use(pat.channel-1)=YES then
+			can_show_data_transmission(pat.channel-1)=NO
+				if login_mode=CMD_MODE_SERIAL then
+					if check_if_serial_channel_is_in_login_state(pat.channel-1)=YES then
+						pat.play(PAT_BLINK_BOTH_IN_TURNS,PL_PAT_CANINT)
+						exit sub
+					end if
+				end if
+			end if
+		end if
+	#endif
+
+	if net.failure=YES then
+		pat.play(PAT_TWO_SHORT_RED,PL_PAT_CANINT)
+		exit sub
+	end if
+
+	if error_mode=YES then
+		pat.play(PAT_BLINK_RED_SLOW,PL_PAT_CANINT)
+		exit sub
+	end if
+
+	'the rest of it is related to comm channels
+	#if LED_INDICATION=0
+		if pat.channel<>0 then exit sub
+		sock.num=SOCK_COMM
+		ser.num=0
+		channel=0
+	#else
+		if pat.channel=0 then
+			select case quick_init_flag
+			case QI_NULL:
+				pat.play(PAT_GREEN_ON,PL_PAT_CANINT)
+			case QI_OK:
+				pat.play(PAT_LONG_GREEN,PL_PAT_CANINT)
+				quick_init_flag=QI_NULL
+			case QI_NG:
+				pat.play(PAT_LONG_RED,PL_PAT_CANINT)
+				quick_init_flag=QI_NULL
+			end select
+			exit sub
+		else
+			sock.num=SOCK_COMM+pat.channel-1
+			ser.num=pat.channel-1
+			channel=pat.channel-1
+		end if
+	#endif
+	
+	if port_in_use(channel)=NO then	
+		pat.play("-~",PL_PAT_CANINT)
+	else
+		select case sock.statesimple
+		case PL_SSTS_CLOSED, PL_SSTS_PC, PL_SSTS_AC:
+			'no connection at this time
+			select case sock.state
+			case PL_SST_CL_PRESET_POPENING,
+				 PL_SST_CL_PRESET_AOPENING,
+				 PL_SST_CL_PRESET_EST,
+				 PL_SST_CL_PRESET_PCLOSING,
+				 PL_SST_CL_PRESET_ACLOSING,
+				 PL_SST_CL_PRESET_STRANGE:
+				'connection was reset by the other end
+				pat.play(PAT_THREE_SHORT_RED,PL_PAT_CANINT)
+			case else:
+				'idle (and not because it was reset by other end)
+				pat.play(PAT_TWO_SHORT_GREEN,PL_PAT_CANINT)
+			end select
+
+		case PL_SSTS_ARP:
+			'connection is being established
+			pat.play(PAT_BLINK_GREEN,PL_PAT_CANINT)
+		
+		case PL_SSTS_PO, PL_SSTS_AO:
+			pat.play(PAT_THREE_SHORT_GREEN,PL_PAT_CANINT)
+		
+		case PL_SSTS_EST:
+			
+			'try this!	
+			can_show_data_transmission(channel)=YES
+			if overrun_es(channel)=YES or overrun_se(channel)=YES then
+				pat.play(PAT_BOTH_LOOP,PL_PAT_CANINT) 'no data transmissionin progress, got overruns
+			else
+				pat.play(PAT_GREEN_LOOP,PL_PAT_CANINT) 'no data transmissionin progress, got overruns
+			end if
+			exit sub
+		end select
+	end if
+end sub
+
+'================================================================================
+sub on_sys_timer()
+	dim f,x as byte
+	dim target_ip as string(15)
+	dim target_port as word
+
+
+	'detect data transmission
+	#if LED_INDICATION=0
+		sock.num=SOCK_COMM
+		if can_show_data_transmission(0)=YES and sock.toutcounter=0 then
+			pat.channel=0
+			pat.play(PAT_GAP,PL_PAT_CANINT)
+		end if
+	#else
+		for f=0 to MAX_NUM_SERIAL_PORTS-1
+			sock.num=SOCK_COMM+f
+			if can_show_data_transmission(f)=YES and sock.toutcounter=0 then
+				pat.channel=f+1
+				pat.play(PAT_GAP,PL_PAT_CANINT)
+			end if
+		next f
+	#endif
+	
+	
+	'check if there is a change of state for any
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		ser.num=f
+		dsr_state_curr(f)=io.lineget(dsr_mapping(f))
+		dtr_state_curr(f)=io.lineget(dtr_mapping(f))
+		
+		
+		cts_state_curr(f)=io.lineget(cts_mapping(f))
+		
+		
+		
+		rts_state_curr(f)=io.lineget(ser.rtsmap)
+
+		if (param_nb(f) and NOTIF_BIT_POSITION_DSR)<>0 then
+			if dsr_state_curr(f)<>dsr_state_prev(f) then
+				dsr_state_prev(f)=dsr_state_curr(f)
+				io_state_changed(f)=YES
+			end if
+		end if
+
+		if (param_nb(f) and NOTIF_BIT_POSITION_DTR)<>0 then
+			if dtr_state_curr(f)<>dtr_state_prev(f) then
+				dtr_state_prev(f)=dtr_state_curr(f)
+				io_state_changed(f)=YES
+			end if
+		end if
+
+		if (param_nb(f) and NOTIF_BIT_POSITION_CTS)<>0 then
+			if cts_state_curr(f)<>cts_state_prev(f) then
+				cts_state_prev(f)=cts_state_curr(f)
+				io_state_changed(f)=YES
+			end if
+		end if
+
+		if (param_nb(f) and NOTIF_BIT_POSITION_RTS)<>0 then
+			if rts_state_curr(f)<>rts_state_prev(f) then
+				rts_state_prev(f)=rts_state_curr(f)
+				io_state_changed(f)=YES
+			end if
+		end if
+
+
+		if io_state_changed(f)=YES then
+			'we need to send notification
+			sock.num=SOCK_COMM+f
+			if sock.inbandcommands=YES then
+				'we are using inband commands for notifications
+				if sock.statesimple=PL_SSTS_EST and sock.rpllen=0 then
+					x=dsr_state_curr(f)*4
+					x=x+dtr_state_curr(f)*8
+					x=x+cts_state_curr(f)*16
+					x=x+rts_state_curr(f)*32
+					sock.setsendinband(chr(sock.escchar)+chr(STX)+"J"+str(x)+chr(CR))
+					io_state_changed(f)=NO
+				end if	
+			else
+				'we are sending UDP notifications
+				sock.num=SOCK_NOTIF+f
+				select case sock.statesimple
+				case PL_SSTS_EST:
+					if sock.remoteip=most_resent_notif_dest_ip(f) and sock.remoteport=most_resent_notif_dest_port(f) then
+						'notification channel is opened and points at the right destination
+						x=dsr_state_curr(f)*4
+						x=x+dtr_state_curr(f)*8
+						x=x+cts_state_curr(f)*16
+						x=x+rts_state_curr(f)*32
+						sock.setdata("J"+str(x))
+						sock.send
+						io_state_changed(f)=NO
+					else
+						'notification channel is opened but points at a wrong destination
+						sock.discard
+					end if
+				
+				case PL_SSTS_CLOSED:
+					if most_resent_notif_dest_ip(f)<>"" then
+						sock.targetip=most_resent_notif_dest_ip(f)
+						if param_nd(f)=ND_PORT_65535 then most_resent_notif_dest_port(f)=65535
+						sock.targetport=most_resent_notif_dest_port(f)
+						sock.connect
+					end if
+				end select
+			end if
+		end if
+	
+	next f
+	
+
+
+	'the following must be called once every second
+	if divider_by_2=NO then
+		divider_by_2=YES
+		exit sub
+	end if
+
+	'we reach this point once/second
+	divider_by_2=NO
+	
+	'--- HOOK UP THINGS THAT MUST BE CALLED EVERY SECOND ---
+	
+	'do we need to reconnect to the destination?
+	'do we need to connect to the destination because there is data to transmit?
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		sock.num=f+SOCK_COMM
+		if sock.statesimple=PL_SSTS_CLOSED then
+			if sock_connection_holdoff_tmr(f)>0 then
+				sock_connection_holdoff_tmr(f)=sock_connection_holdoff_tmr(f)-1
+			else	
+				decide_on_sock_connect(f)
+			end if
+		end if
+	next f
+
+	'do we need to control connection establishment/termination through DSR?
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		if param_rm(f)<>RM_SERVER and param_cm(f)=CM_COMMAND_DSR then
+			sock.num=f+SOCK_COMM
+			io.num=dsr_mapping(f)
+			if io.state=LOW then
+				'connection is supposed to be off
+				if sock.statesimple=PL_SSTS_EST then
+					sock.close
+				end if
+			else
+				'connection is supposed to be on
+				if sock.statesimple<>PL_SSTS_EST then
+					sock.connect
+				end if
+			end if
+		end if
+	next f
+
+	'take care of login timeout
+	if login_mode<>CMD_MODE_NONE then
+		if login_tout>0 then
+			login_tout=login_tout-1
+			if login_tout=0 then
+				logout()
+			end if	
+		end if
+	end if
+
+	'dhcp lease time 
+	if dhcp_lease_time>0 then
+		dhcp_lease_time=dhcp_lease_time-1
+			if dhcp_lease_time=0 then
+				dim s as string
+				dim dhcp_ip,dhcp_gatewayip,dhcp_netmask as string(15)
+				
+				if dhcp_obtain(dhcp_ip,dhcp_gatewayip,dhcp_netmask,dhcp_lease_time,s)=OK then
+					setting_set("IP",0,dhcp_ip)
+					setting_set("GI",0,dhcp_gatewayip)
+					setting_set("NM",0,dhcp_netmask)
+					net.ip=dhcp_ip
+					net.gatewayip=dhcp_gatewayip
+					net.netmask=dhcp_netmask
+				else
+					set_net_ip()
+				end if
+		end if
+	end if
+end sub
+
+
+'================================================================================
+public sub on_sock_data_arrival
+	dim s as string
+	dim x as byte
+
+	if sock.num>=SOCK_COMM and sock.num<SOCK_COMM+MAX_NUM_SERIAL_PORTS then
+		'here when in the serial programming mode -- this is a "sink" for the data
+		s=sock.getdata(255)
+	end if
+
+	if sock.num=SOCK_UDP then
+		net_cmd_proc(sock.getdata(255),CMD_MODE_UDP,"U"+sock.remoteip,sock.bcast,error_mode)
+		exit sub
+	end if
+
+	if sock.num>=SOCK_HTTP then 'this is TELNET
+
+		telnet_cmd_str=telnet_cmd_str+sock.getdata(255-len(ser_cmd_str))
+		
+		x=instr(1,telnet_cmd_str,chr(STX),1)
+		'this will prevent the string to overflow with garbage
+		if x=0 and len(telnet_cmd_str)=MAX_NET_CMD_LEN then
+			telnet_cmd_str=""
+			exit sub
+		end if
+		
+		while x<>0
+			'we've got STX
+			telnet_cmd_str=right(telnet_cmd_str,len(telnet_cmd_str)+1-x) 'cut out everything to the left of it
+			x=instr(1,telnet_cmd_str,chr(CR),1) 'look for command end
+			if x=0 then exit sub
+			net_cmd_proc(mid(telnet_cmd_str,2,x-2),CMD_MODE_TELNET,"U"+sock.remoteip+":"+str(sock.remoteport),NO,error_mode)
+			telnet_cmd_str=right(telnet_cmd_str,len(telnet_cmd_str)-x)
+			x=instr(1,telnet_cmd_str,chr(STX),1)
+		wend
+	end if
+end sub
+
+
+'================================================================================
+public sub on_ser_data_arrival
+	dim x,y as byte
+
+	'here only when in the serial programming mode -- this must be a command
+	ser_cmd_str=ser_cmd_str+ser.getdata(255-len(ser_cmd_str))
+	
+	x=instr(1,ser_cmd_str,chr(STX),1)
+	'this will prevent the string to overflow with garbage
+	if len(ser_cmd_str)=MAX_SER_CMD_LEN then
+		y=instr(1,ser_cmd_str,chr(CR),1)
+		if x=0 or y=0 then
+			ser_cmd_str=""
+			exit sub
+		end if
+	end if
+	
+	while x<>0
+		'we've got STX
+		ser_cmd_str=right(ser_cmd_str,len(ser_cmd_str)+1-x) 'cut out everything to the left of STX
+		x=instr(1,ser_cmd_str,chr(CR),1) 'look for command end
+		if x=0 then exit sub
+		ser_cmd_proc(mid(ser_cmd_str,2,x-2),0,error_mode)
+		ser_cmd_str=right(ser_cmd_str,len(ser_cmd_str)-x)
+		x=instr(1,ser_cmd_str,chr(STX),1)
+	wend
+end sub
+
+
+'================================================================================
+public sub on_sock_inband
+	dim s as string(MAX_NET_CMD_LEN)
+	s=sock.getinband
+	net_cmd_proc(left(s,len(s)-1),CMD_MODE_INBAND,"I"+sock.remoteip+":"+str(sock.remoteport),NO,error_mode)
+end sub
+
+
+'================================================================================
+sub on_sock_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+	dim x as byte '[ARRAY BUG]
+
+	#if LED_INDICATION=0
+		'force LED pattern change for comm channel 0 (unless we are in serprog mode)
+		if login_mode<>CMD_MODE_SERIAL then
+			if sock.num=SOCK_COMM then
+				pat.channel=0
+				pat.play(PAT_GAP,pat_canint)
+			end if
+		end if
+	#else
+		'force LED pattern change for comm channels (unless in serial prog mode)
+		if check_if_serial_channel_is_in_login_state(sock.num-SOCK_COMM)=NO then
+			if sock.num>=SOCK_COMM and sock.num<SOCK_COMM+MAX_NUM_SERIAL_PORTS then
+				pat.channel=sock.num-SOCK_COMM+1
+				pat.play(PAT_GAP,pat_canint)
+			end if
+		end if
+	#endif
+	
+	'socket is closing? this can mean the end of setup session
+	if newstatesimple=PL_SSTS_CLOSED then
+		sock_closed_check_net_login(sock.num) 'maybe need to close login
+	end if
+	
+	'this is for comm channel sockets only
+	if sock.num>=SOCK_COMM and sock.num<SOCK_COMM+MAX_NUM_SERIAL_PORTS then
+		x=sock.num-SOCK_COMM
+		
+		'do we need to change the serial port state?
+		decide_on_ser_enabled(x)
+
+		'do we need to indicate connection status through DTR?
+		if param_dt(x)=YES then
+			io.num=dtr_mapping(x)
+			if newstatesimple=PL_SSTS_EST then
+				io.state=HIGH
+			else
+				io.state=LOW
+			end if
+		end if
+
+		'did other side reset the connection?
+		select case newstate
+		case PL_SST_CL_PRESET_POPENING,
+			 PL_SST_CL_PRESET_AOPENING,
+			 PL_SST_CL_PRESET_EST,
+			 PL_SST_CL_PRESET_PCLOSING,
+			 PL_SST_CL_PRESET_ACLOSING,
+			 PL_SST_CL_PRESET_STRANGE:
+				'we will then holdoff our next outgoing connection attempt
+				sock_connection_holdoff_tmr(x)=CONNECTION_HOLDOFF_ON_RST
+		end select
+	
+		'did we accept an incoming connection?
+		if newstate=PL_SST_EST_POPENED then overriding_destination_set(x)=NO
+	
+	end if
+
+	if sock.num = index_page_socknum and newstate = PL_SST_CL_ACLOSED then
+		if html_reboot_flag = YES then 
+			sys.reboot
+		else
+			index_page_socknum = 255
+		end if
+	end if
+end sub
+
+
+'================================================================================
+sub on_ser_overrun()
+	
+	dim x as byte 
+
+	x=ser.num
+	
+	overrun_se(x)=YES
+end sub
+
+
+'================================================================================
+sub on_sock_overrun()
+
+	if sock.num>=SOCK_COMM and sock.num<SOCK_COMM+MAX_NUM_SERIAL_PORTS then
+		overrun_es(sock.num-SOCK_COMM)=YES
+	end if
+end sub
+
+'================================================================================
+sub on_ser_esc()
+
+	login(CMD_MODE_SERIAL,"S",0)
+	enter_ser_prog_mode(ser.num)
+end sub
+
+'================================================================================
+sub on_net_overrun()
+' TODO: place "on_net_overrun" event handler code here...
+end sub

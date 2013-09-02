@@ -1,0 +1,49 @@
+include "../common/common.tbh"
+include "../ttsoft/bpdriver.tbh"
+include "db.tbh"
+include "dbHumans.tbh"
+include "dbCards.tbh"
+include "dbCardLog.tbh"
+
+public sub on_BPDriver_Database(byref datagram as string)
+  dim action as string(8) = token(datagram, 1, TAB)
+  
+  if action = "DROP_DB" then
+    dbDropDatabase
+    exit sub
+  end if
+
+  ' Tables manipulation
+  dim table as string(8) = token(datagram, 2, TAB)
+  
+  if action = "A" then
+    if not dbUse(table) then exit sub
+	
+	if table = "Humans" then
+	  dim h as HumanRecord
+	  h.name = token(datagram, 3, TAB)
+	  dbHumansAdd(h)
+	  bpdriverSend("DB"+chr(TAB)+"A"+chr(TAB)+"Humans"+chr(TAB)+str(dbCurrentPos))
+	end if
+	
+	if table = "Cards" then
+	  dim c as CardRecord
+	  c.serialNumber = token(datagram, 3, TAB)
+	  c.cardType = token(datagram, 4, TAB)
+	  c.humanRef = val(token(datagram, 5, TAB))
+	  dbCardsAdd(c)
+	  bpdriverSend("DB"+chr(TAB)+"A"+chr(TAB)+"Cards"+chr(TAB)+str(dbCurrentPos))
+	end if
+
+    if table = "CardLog" then
+	end if
+  end if  
+
+  if action = "CLR_TBL" then
+    if not dbUse(table) then exit sub
+	
+    if table = "CardLog" then
+	  dbPurgeTable
+	end if
+  end if  
+end sub

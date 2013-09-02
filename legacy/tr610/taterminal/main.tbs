@@ -1,0 +1,175 @@
+include "global.tbh"
+
+declare html_reboot_flag as no_yes
+declare on_kp_event_dest as on_kp_event_destinations
+declare on_sys_timer_event_dest as on_sys_timer_event_destinations
+declare on_reader_event_dest as on_reader_event_destinations
+
+dim sID_buffer as string(ID_LEN*2)
+dim button_timer as byte
+'=============================================================
+sub on_sys_init()
+	dim s as string
+	boot
+end sub
+
+'=============================================================
+sub on_sock_event(newstate as pl_sock_state, newstatesimple as pl_sock_state_simple)
+	select case sock.num
+	case SOCK_LS:
+		select case newstatesimple
+		case PL_SSTS_EST:
+			'now we login to the linkserver
+			pat.play("G~",PL_PAT_CANINT)
+			AggreGateConnected
+		case PL_SSTS_CLOSED:
+			sock.rxclear
+			if login_mode = CMD_MODE_AGGREGATE then logout
+			device_sys_busy(no)
+			reader_master_switch(PL_ON)
+			agg_connected = NO
+		case else:	
+			pat.play("-~",PL_PAT_CANINT)
+		end select
+	case else:
+		if sock.num = index_page_socknum and newstate = PL_SST_CL_ACLOSED then 
+			if html_reboot_flag = YES then 
+				sys.reboot
+			else
+				index_page_socknum = 255
+			end if
+		end if
+	end select
+	if newstatesimple = PL_SSTS_CLOSED then sock.txclear
+end sub
+
+'=============================================================
+sub on_sys_timer
+	if button.pressed = 1 then
+		button_timer = button_timer + 1
+		if button_timer > 6 then pat.play("R-G~*",PL_PAT_CANINT)
+	end if
+	select case on_sys_timer_event_dest
+			
+	case ON_SYS_TIMER_EVENT_DEST_CLOCK:	
+		ui_clock_timer_proc
+		device_login_timer_proc
+		if setting_get("DH",0) = "1" then 
+			device_check_DHCP(no)		
+		end if
+		device_SNTPAutoSync
+		device_relay_timer
+		AggreGateProcessTimer
+	end select
+	sID_buffer = ""
+end sub
+
+'=============================================================
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+	select case on_kp_event_dest	
+	case ON_KP_EVENT_DEST_CLOCK:
+		ui_clock_key_proc(key_event,key_code)
+	case ON_KP_EVENT_MC_SET
+		sys.reboot	
+	end select
+end sub
+
+'=============================================================
+public sub on_sock_data_arrival	
+	Select case sock.num
+	case SOCK_LS:
+		'discard data but only if LS login has been completed
+		device_sys_busy(yes)
+		ProcessCommand
+		ProcessEvents
+		device_sys_busy(no)
+	case SOCK_UDP
+		net_cmd_proc(sock.getdata(255),CMD_MODE_UDP,"U"+sock.remoteip,sock.bcast,error_mode)
+		exit sub
+	case else
+		'extract and discard the data
+		sock.rxclear
+	End select
+end sub
+
+'=============================================================
+sub on_ser_data_arrival()
+	dim Pos1,Pos2 as byte
+	dim s as string
+	s = ser.getdata(255)
+	select case ser.num
+	case READER_PORT_NUM,READER_PORT_NUM+1:
+		sID_buffer = sID_buffer + s	
+		Pos1 = instr(1,sID_buffer,chr(STX),1)	
+		Pos2 = instr(1,sID_buffer,chr(CR),1)
+		if Pos2 > 0 and Pos1 > 0 and Pos2 > Pos1 then 
+			sID_buffer = mid(sID_buffer,pos1+1,pos2-pos1-1)
+			sID_buffer = right(sID_buffer,ID_LEN)	
+			select case on_reader_event_dest
+			case ON_READER_EVENT_DEST_INIT
+				kp.enabled = NO
+				kp.genkpevent = YES
+				kp.enabled = YES
+				beep.divider = 20000
+				beep.play("BBB",PL_BEEP_CANINT)
+				master_set(sID_buffer)
+				lcd_clear(0,0,lcd.width,lcd.height)
+				lcd_print_msg(MACARD_SET,0,0,lcd.width,lcd.height,yes)
+				on_kp_event_dest = ON_KP_EVENT_MC_SET
+			case ON_READER_EVENT_DEST_CLOCK
+				device_card_read(sID_buffer)
+			end select
+			sID_buffer = ""
+		end if
+		if len(sID_buffer) > ID_LEN+4 then
+			sID_buffer = ""
+		end if
+	end select
+end sub
+
+'=============================================================
+sub on_kp_overflow()
+	kp.enabled = NO
+	kp.enabled = YES
+end sub
+
+'=============================================================
+sub on_button_pressed()
+	button_timer = 0 
+end sub
+
+'=============================================================
+sub on_button_released()
+	if button_timer > 6 then
+		fd.format(fd.availableflashspace, 16)
+		device_operation("I")
+	end if
+end sub
+
+'=============================================================
+sub on_sock_data_sent()
+	dim f as byte
+	select case sock.num
+	case SOCK_LS:
+		if login_mode = CMD_MODE_AGGREGATE and event_in_proc = yes then
+			agg_adjust_record_file(EVENT_TBL, agg_rec_num)
+			event_in_proc = no
+			reader_master_switch(PL_ON)
+			ProcessEvents
+		end if
+	end select
+end sub
+
+'=============================================================
+sub on_sock_postdata()
+	lcd_print_msg(MSG_TBL_TABLE_UPLOAD,20,10,lcd.width-40,lcd.height-30,yes)
+	if tbl_upload_result = 0 then 
+		tbl_upload_result = html_tbl_upload
+	else
+		while sock.httprqstring <> ""
+			sock.gethttprqstring(65535)
+		wend
+	end if
+	lcd_clear(19,9,lcd.width-38,lcd.height-28)
+	ui_clock_force_print = YES
+end sub

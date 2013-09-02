@@ -1,0 +1,224 @@
+include "db.tbh"
+include "../common/common.tbh"
+
+const BLANK = 255
+const MAX_NO_OF_TABLES = 6
+
+dim dbTablesCount as byte = 0
+dim currentTableDefIndx as byte = 0
+dim currentTableRecord as string
+
+type tableDefinition
+  fileNum as byte
+  recordSize as byte
+  tableName as string(8)
+  currentPos as dword ' fizyczna pozycja w pliku dla operacji odczytu (zwykle nastêpny bajt po aktualnym rekordzie)
+  insertPos as dword  ' fizyczna pozycja w pliku dla operacji zapisu (wskazuje pierwszy pusty rekord w bazie)
+end type
+
+dim tableDefinitions(MAX_NO_OF_TABLES) as tableDefinition
+
+declare sub dbFileCreate(byref fileName as string, sectors as word)
+declare function dbFindEmptyRecord as dword
+declare function buildEmptyRecord as string
+
+'==================================================================================================================
+'Database definition routines
+
+public sub dbDropDatabase
+  dim i as byte
+  for i = 0 to MAX_NO_OF_TABLES - 1
+    if tableDefinitions(i).fileNum <> 0 then
+	  fd.filenum = tableDefinitions(i).fileNum
+	  fd.close
+	  fd.delete("db" + tableDefinitions(i).tableName)
+	end if
+  next i
+  sys.reboot
+end sub
+
+public sub dbInitTable(byref tableName as string, recordSize as byte, recordCount as dword)
+  dim fileName as string(10) = "db" + tableName
+  tableDefinitions(currentTableDefIndx).fileNum = currentTableDefIndx + 1
+  tableDefinitions(currentTableDefIndx).recordSize = recordSize
+  tableDefinitions(currentTableDefIndx).tableName = tableName
+  tableDefinitions(currentTableDefIndx).currentPos = 1
+  
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  if fd.open(fileName) <> PL_FD_STATUS_OK then
+    recordCount = recordCount*recordSize
+	recordCount = recordCount/256
+    dbFileCreate(fileName, recordCount + 1)
+    fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+    fd.open(fileName)
+  end if
+  
+  tableDefinitions(currentTableDefIndx).insertPos = dbFindEmptyRecord
+
+  currentTableDefIndx = currentTableDefIndx + 1
+  dbTablesCount = currentTableDefIndx
+end sub
+
+public function dbGetCurrentTableIndex as byte
+  dbGetCurrentTableIndex = currentTableDefIndx
+end function
+
+public function dbGetTablesCount as byte
+  dbGetTablesCount = dbTablesCount
+end function
+
+public function dbDefTableName(i as byte) as string(8)
+  dbDefTableName = tableDefinitions(i).tableName
+end function
+
+public function dbDefRecordSize(i as byte) as byte
+  dbDefRecordSize = tableDefinitions(i).recordSize
+end function
+
+public function dbTableSize(i as byte) as dword
+  fd.filenum = tableDefinitions(i).fileNum
+  dbTableSize = fd.filesize
+end function
+
+public function dbGetFreeRecords(i as byte) as word
+  dbGetFreeRecords = (dbTableSize(i)+1-tableDefinitions(i).insertPos) / dbDefRecordSize(i)
+end function
+
+public function dbGetTotalRecords(i as byte) as word
+  dbGetTotalRecords = dbTableSize(i) / dbDefRecordSize(i)
+end function
+
+'==================================================================================================================
+
+public function dbUse(byref tableName as string) as boolean
+  dim i as byte
+  for i = 0 to MAX_NO_OF_TABLES - 1
+    if tableDefinitions(i).tableName = tableName then
+	  currentTableDefIndx = i
+	  dbUse = true
+	  tableDefinitions(currentTableDefIndx).currentPos = 1
+	  exit function
+	end if
+  next i
+  dbUse = false
+end function
+
+public sub dbPurgeTable
+	  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+	  fd.close
+	  fd.delete("db" + tableDefinitions(currentTableDefIndx).tableName)
+	  fd.flush
+	  sys.reboot
+  lockDevice
+  fd.setpointer(1)
+  dim s as string = buildEmptyRecord
+  while fd.pointer <= fd.filesize
+    fd.setdata(s)
+	doevents
+  wend
+  fd.flush
+  tableDefinitions(currentTableDefIndx).currentPos = 1
+  tableDefinitions(currentTableDefIndx).insertPos = dbFindEmptyRecord
+  unlockDevice
+end sub
+
+public function dbHasNext as boolean
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  fd.setpointer(tableDefinitions(currentTableDefIndx).currentPos)
+  currentTableRecord = fd.getdata(tableDefinitions(currentTableDefIndx).recordSize)
+  if currentTableRecord = buildEmptyRecord then dbHasNext = false else dbHasNext = true
+  tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+end function
+
+public function dbGoTo(idx as word) as boolean
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  fd.setpointer(tableDefinitions(currentTableDefIndx).recordSize*(idx-1)+1)
+  currentTableRecord = fd.getdata(tableDefinitions(currentTableDefIndx).recordSize)
+  if currentTableRecord = buildEmptyRecord then dbGoTo = false else dbGoTo = true
+  tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+end function
+
+public function dbFind(byref s as string) as boolean
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  dim pos as dword
+  pos = fd.find(1, s, 1, FORWARD, tableDefinitions(currentTableDefIndx).recordSize, PL_FD_FIND_EQUAL)
+  if pos > 0 then
+    dbFind = true
+	fd.setpointer(pos)
+	currentTableRecord = fd.getdata(tableDefinitions(currentTableDefIndx).recordSize)
+	tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+  else
+    dbFind = false
+  end if
+end function
+
+public function dbCurrentPos as word
+  dbCurrentPos = tableDefinitions(currentTableDefIndx).currentPos / tableDefinitions(currentTableDefIndx).recordSize
+end function
+
+public function dbCurrentRecord as string
+  dbCurrentRecord = currentTableRecord
+end function
+
+public function dbAdd(byref record as string) as word
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  fd.setpointer(tableDefinitions(currentTableDefIndx).insertPos)
+  fd.setdata(record)
+  currentTableRecord = record
+  fd.flush
+  tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+  tableDefinitions(currentTableDefIndx).insertPos = fd.pointer
+  dbAdd = dbCurrentPos
+end function
+
+public sub dbUpdate(byref record as string)
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  fd.setpointer(tableDefinitions(currentTableDefIndx).currentPos - tableDefinitions(currentTableDefIndx).recordSize)
+  fd.setdata(record)
+  currentTableRecord = record
+  fd.flush
+  tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+end sub
+
+public sub dbDelete
+  fd.filenum = tableDefinitions(currentTableDefIndx).fileNum
+  fd.setpointer(tableDefinitions(currentTableDefIndx).currentPos - tableDefinitions(currentTableDefIndx).recordSize)
+  fd.setdata(buildEmptyRecord)
+  fd.flush
+  tableDefinitions(currentTableDefIndx).currentPos = fd.pointer
+  tableDefinitions(currentTableDefIndx).insertPos = dbFindEmptyRecord
+end sub
+
+sub dbFileCreate(byref fileName as string, sectors as word)
+  dim i as word
+  dim s as string(64) = ""
+
+  for i = 1 to 64
+    s = s + chr(BLANK)
+  next i
+
+  fd.delete(fileName)
+  
+  fd.create(fileName)
+  fd.filenum = 0
+  fd.open(fileName)
+  fd.setpointer(1)
+  for i = 1 to sectors*4
+    fd.setdata(s)
+  next i
+  fd.flush
+  fd.close  
+end sub
+
+function dbFindEmptyRecord as dword
+  dbFindEmptyRecord = fd.find(1, buildEmptyRecord,
+    1, FORWARD, tableDefinitions(currentTableDefIndx).recordSize, PL_FD_FIND_EQUAL)
+end function
+
+function buildEmptyRecord as string
+  dim i as byte
+  buildEmptyRecord = ""  
+  for i = 1 to tableDefinitions(currentTableDefIndx).recordSize
+    buildEmptyRecord = buildEmptyRecord + chr(BLANK)
+  next i
+end function

@@ -1,0 +1,38 @@
+const SERIAL_TCPTT = 0
+const SOCKET_JAVA = 1
+const SOCKET_USA = 2
+const DEF_BIKES = chr(&h41) + chr(&h42) + chr(&h43) + chr(&h44) + chr(&h45) + chr(&h46) + chr(&h47) + chr(&h48) + chr(&h49) + chr(&h4a) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00) + chr(&h00)
+
+enum FSMStateEnum
+  Iddle,
+  ShowCardInfo,
+  UpdatePriceList,
+  ShowServiceInfo
+end enum
+
+declare fsmState as FSMStateEnum
+
+declare sub changeFSMState(newState as FSMStateEnum)
+
+declare devcommCurrentCard as string(16) 'aktualna karta w systemie
+declare devcommNewCardPoints as long 'nowa (dodawana) wartoœæ punktow
+declare devcommCurrentBike as byte = 0 'aktualny adres roweru
+declare devcommPriceList as string(64) 'aktualnie ustawiany cennik
+declare devcommBikeStatus as boolean(33) 'aktualna sytuacja roweru false = brak, true = present
+declare devcommDeviceOnline as boolean(33) 'czy dany czytnik odpowiedzial na pytanie
+declare sub devcommInit
+declare sub devcommQueryDevice
+declare sub devcommProcessAnswer
+
+declare sub javaserverInit
+declare sub javaserverTimer
+declare sub javaserverReadDatagram
+declare sub javaserverSendCardDetected(sn as string)
+declare sub javaserverSendBikeIn(sn as string, points as long)
+declare sub javaserverSendBikeOut(sn as string, points as long)
+declare sub javaserverSendPoints(sn as string, p as long)
+declare sub javaserverSendPointsAdded(sn as string)
+
+declare function storageGetMainReaderId as byte
+
+declare sub debugShowPriceList(byref pricelist as string)

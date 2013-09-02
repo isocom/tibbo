@@ -1,0 +1,38 @@
+<?
+  include "global.tbh"
+  include "../../lib/common/html.tbh"
+  include "../../lib/common/settings.tbh"
+?>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD W3 HTML//EN">
+<HTML>
+<HEAD>
+<META HTTP-EQUIV="Expires" CONTENT="Tue, 01 Jan 1980 1:00:00 GMT">
+<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+<script type="text/javascript">
+function HomePage()
+{
+	window.top.location.replace("main.html")
+}
+</script>
+</HEAD>
+
+<BODY>
+<h1>Core device Settings</h1>
+<form action="cored_post.html" method="post"><table>
+  <tr><td>Serial number (6):</td><td><input type="text" name="SN" value="<? htmlWrite(settingsGet("SN", 0)) ?>"></td></tr>
+  <tr><td>Rotate screen:</td><td>
+  <input type="radio" name="RS" value="Y" <? if val(settingsGet("RS", 0)) = 1 then htmlWrite("checked") ?> >Yes
+  <input type="radio" name="RS" value="N" <? if val(settingsGet("RS", 0)) = 0  then htmlWrite("checked") ?> >No
+  </td></tr>
+  <tr><td>Swap Relay:</td><td>
+  <input type="radio" name="SR" value="Y" <? if val(settingsGet("SR", 0)) = 1 then htmlWrite("checked") ?> >Yes
+  <input type="radio" name="SR" value="N" <? if val(settingsGet("SR", 0)) = 0  then htmlWrite("checked") ?> >No
+  </td></tr>
+  <tr><td>Dewice password (<? htmlWrite(str(len(settingsGet("PW", 0)))) ?>/16):</td>
+    <td><input type="text" name="PW" value="<? htmlWrite(settingsGet("PW", 0)) ?>"></td></tr>
+  <tr><td>BPDriver IP address:</td><td><input type="text" name="BP" value="<? htmlWrite(settingsGet("BP", 0)) ?>"></td></tr>
+  <tr><td>Localization (<? htmlWrite(str(len(settingsGet("LC", 0)))) ?>/21):</td><td><input type="text" name="LC" value="<? htmlWrite(settingsGet("LC", 0)) ?>"></td></tr>
+  <tr><td><input type="submit" value="set"></td><td><input type="button" onclick="HomePage()" value="cancel"></td></tr>
+</table></form>
+</BODY>

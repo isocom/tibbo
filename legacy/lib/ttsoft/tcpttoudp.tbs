@@ -1,0 +1,62 @@
+include "../../lib/common/settings.tbh"
+include "../../lib/em500/em500setup.tbh"
+
+public dim tcpttoudpUDPSocketNumber as byte
+public dim tcpttoudpSerialPortNumber as byte
+
+public sub tcpttoudpInit(socketNumber as byte, serialNumber as byte)
+  tcpttoudpUDPSocketNumber  = socketNumber
+  tcpttoudpSerialPortNumber = serialNumber
+  
+  sock.num = socketNumber
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+  sock.localportlist = "1001"
+  'sock.targetip = "192.168.147.6"
+  sock.targetport = "1001"
+  
+  ser.num = serialNumber
+  ser.enabled = NO
+  ser.baudrate = ser.div9600
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES  
+end sub
+
+public sub tcpttoudpSockProcess
+  if sock.num <> tcpttoudpUDPSocketNumber then exit sub
+
+  ser.num = tcpttoudpSerialPortNumber
+  ser.setdata(sock.getdata(200))
+  ser.send
+end sub
+
+dim tcpttoudpBuffer as string = ""
+
+public sub tcpttoudpSerialProcess
+  if ser.num <> tcpttoudpSerialPortNumber then exit sub
+
+  tcpttoudpBuffer = tcpttoudpBuffer + ser.getdata(ser.rxlen)
+  if len(tcpttoudpBuffer) > 200 then tcpttoudpBuffer = ""
+  if asc(tcpttoudpBuffer) <> &hCA then tcpttoudpBuffer = ""
+  if len(tcpttoudpBuffer) > 6 then
+    dim l as byte = asc(mid(tcpttoudpBuffer, 6, 1))
+	if l = len(tcpttoudpBuffer) then
+	  sock.num = tcpttoudpUDPSocketNumber
+	  sock.setdata(tcpttoudpBuffer)
+	  sock.send
+	  tcpttoudpBuffer = ""
+	end if
+  end if
+end sub

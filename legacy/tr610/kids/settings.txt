@@ -1,0 +1,21 @@
+WATCH OUT: NUM_OF_SETTINGS const in <global.tbh> must be
+>= actial number of settings in this file!
+
+Param1 - min val (B) or min length (D, S)
+Param2 - max val (B) or max length (D, S)
+Ini    - initialization mode
+
+  1		2		3		4		5		6	7
+  Name	Type 	Members	Param1	Param2	Ini	Defval
+
+>>SN	S		1		6		6		A	998899
+>>RS	B		1		0		1		A	0
+>>DH	B		1		0		1		A	1
+>>IP	D		1		4		4		A	192.168.147.48
+>>NM	D		1		4		4		A	255.255.255.0
+>>GW	D		1		4		4		A	192.168.147.1
+>>SR	B		1		0		1		A	0
+>>PW	S		1		0		16		A	jb4go32w
+>>BP	D		1		4		4		A	192.168.147.6
+>>LC	S		1		0		21		A	0123456789ABCDEFGHIJK
+<END>

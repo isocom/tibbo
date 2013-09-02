@@ -1,0 +1,4 @@
+'
+'
+'This routine initializes EM0-500 device
+declare sub EM500DeviceInit(useDHCP as boolean, ip as string, nm as string, gw as string)

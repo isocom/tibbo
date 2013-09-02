@@ -1,0 +1,8 @@
+  1				2		3		4			5		6		
+  TableName		Minrecs Maxrecs	TableStruct	Hash	Numkeyf
+
+>>CR			0		17500	LIST		N		0
+>>TBL_WL		0		255		TABLE		Y		1
+>>TBL_TEMP		0		0		TABLE		Y		0
+
+<END>

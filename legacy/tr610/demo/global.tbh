@@ -1,0 +1,25 @@
+const UDP_SERVER_SOCKET_NUMBER = 0
+const TAB=9
+
+enum FSMStateEnum
+  Iddle,
+  CardReaded,
+  DiplayingMsg,    'Wyswietlanie komunikatu
+  DiplayingTxt,   'Wyswietlanie tekstu
+  EnteringTime,
+  PreparingToTan,  'Otwarcie przekaznika i odliczanie do 1 minuty do wlaczenia lozka
+  Tanning          'Opalanie sie odliczenie w dó³ ustalonego czasu
+end enum
+
+declare fsmState as FSMStateEnum
+declare globalString1 as string
+declare globalByte1 as byte
+declare globalByte2 as byte
+declare sub changeFSMState(newState as FSMStateEnum)
+
+declare sub entertimeStart
+declare sub entertimeKP(keyEvent as pl_kp_event_codes, keyCode as byte)
+declare function entertimeGet as word
+declare sub entertimePreTan
+declare sub entertimeTan
+declare sub entertimeTimer

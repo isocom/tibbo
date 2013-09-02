@@ -1,0 +1,15 @@
+<?
+  include "../../lib/common/html.tbh"
+  dim fileName as string = htmlGetHttpArgument(sock.httprqstring, "fileName=")
+  romfile.open(fileName)
+  if romfile.pointer <> 0 then
+    dim fileSize as dword = romfile.size
+    if fileSize > 0 then
+	  romfile.pointer = 1
+      while romfile.pointer <= fileSize
+	    sock.setdata(romfile.getdata(64))
+        sock.send
+      wend
+    end if
+  end if
+?>

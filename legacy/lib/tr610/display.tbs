@@ -1,0 +1,336 @@
+include "../common/common.tbh"
+include "display.tbh"
+include "keypad.tbh"
+
+const LCD_WIDTH = 128
+const LCD_HEIGHT = 64
+
+const LCD_BACK_LIGHT = 46
+
+const LCD_IOMAP_RST  = 44
+const LCD_IOMAP_EN   = 23
+const LCD_IOMAP_CS1  = 40
+const LCD_IOMAP_CS2  = 41
+const LCD_IOMAP_DI   = 43
+const LCD_IOMAP_RW   = 42
+const LCD_IOMAP_DATA = 4
+
+const LCD_CON_1 = 12
+const LCD_CON_2 = 13
+const LCD_CON_3 = 14
+const LCD_CON_4 = 15
+
+dim displayTimerCounter as byte = 0
+dim displayShowClockFlag as boolean = false
+dim displayShowClockRefreshAt as byte = 255
+dim displayOverrideTTLogo as boolean = false
+dim displayOverrideTTLogo1 as string(21) = "Copyright (c) 20010  "
+dim displayOverrideTTLogo2 as string(21) = "TT Soft Sp. z o.o.   "
+dim displayOverrideTTLogo3 as string(21) = "012345678901234567890"
+
+'FORWARD DECLARATIONS
+
+declare sub showClock(x as byte, y as byte)
+declare sub showCustomLogo
+
+'PUBLIC IMPLEMENTATION
+
+public sub displayInit(rotate as no_yes)
+  io.num = LCD_BACK_LIGHT 'setup backling control I/O line
+  io.enabled = YES
+
+  displayBacklight(PL_ON)
+
+  'configure control lines as outputs
+  io.num = LCD_IOMAP_RST 'RST
+  io.enabled = YES
+  io.num = LCD_IOMAP_EN  'EN
+  io.enabled = YES
+  io.num = LCD_IOMAP_CS1 'CS1
+  io.enabled = YES
+  io.num = LCD_IOMAP_CS2 'CS2
+  io.enabled = YES
+  io.num = LCD_IOMAP_RW  'R/W
+  io.enabled = YES
+  io.num = LCD_IOMAP_DI  'D/I
+  io.enabled = YES
+
+  'RST,EN,CS1,CS2,D/I,R/W,DATA7-0
+  lcd.iomapping = str(LCD_IOMAP_RST) + "," + str(LCD_IOMAP_EN) + "," + str(LCD_IOMAP_CS1) + "," + str(LCD_IOMAP_CS2) + "," + str(LCD_IOMAP_DI) + "," + str(LCD_IOMAP_RW) + "," + str(LCD_IOMAP_DATA)
+  
+  lcd.width = LCD_WIDTH
+  lcd.height = LCD_HEIGHT
+  lcd.rotated = rotate
+  lcd.inverted = NO
+  lcd.enabled = YES
+
+  'contrast control lines
+  io.num = LCD_CON_1
+  io.enabled = YES
+  io.num = LCD_CON_2
+  io.enabled = YES
+  io.num = LCD_CON_3
+  io.enabled = YES
+  io.num = LCD_CON_4
+  io.enabled = YES
+
+  displaySetContrast(255)
+  displayClearAll
+
+  lcd.forecolor = 1
+  lcd.backcolor = 0
+end sub
+
+public sub displayTimer
+  if displayTimerCounter = 200 then displayTimerCounter = 0  
+
+  if displayShowClockFlag then showClock(20, 32)
+
+  displayTimerCounter = displayTimerCounter + 1
+end sub
+
+public sub displayOverrideLogo(override as boolean, s1 as string(21), s2 as string(21), s3 as string(21))
+  displayOverrideTTLogo = override
+  displayOverrideTTLogo1 = s1
+  displayOverrideTTLogo2 = s2
+  displayOverrideTTLogo3 = s3
+
+  displayShowClockRefreshAt = displayTimerCounter + 1
+  if displayShowClockRefreshAt >= 200 then displayShowClockRefreshAt = displayShowClockRefreshAt - 200
+end sub
+
+public sub displayShowClock(visible as boolean)
+  displayShowClockFlag = visible
+  
+  displayShowClockRefreshAt = displayTimerCounter + 1
+  if displayShowClockRefreshAt >= 200 then displayShowClockRefreshAt = displayShowClockRefreshAt - 200
+end sub
+
+public sub displayBacklight (on as off_on)
+  io.num = LCD_BACK_LIGHT
+  if on = PL_ON then
+    io.state = HIGH
+  else
+    io.state = LOW
+  end if
+end sub
+
+public sub displaySetContrast(level as byte)
+'Contrast control shares the data bus with the LCD. Initialize LCD first, 
+'then set the contrast (before LCD initialization the bus may be driven by the LCD)
+  dim lcd_contrast(4) as byte
+  dim x as byte
+  dim s as string(6)
+
+  lcd_contrast(0) = LCD_CON_4
+  lcd_contrast(1) = LCD_CON_3
+  lcd_contrast(2) = LCD_CON_2
+  lcd_contrast(3) = LCD_CON_1
+
+  s = bin(level)
+  s = mid(s,3,len(3)-2)
+  while len(s) < 4
+    s = "0"+ s
+  wend
+  for x = 0 to 3
+    if mid(s,x+1,1) = "0" then
+      io.lineset(lcd_contrast(x),LOW)
+    else
+      io.lineset(lcd_contrast(x),HIGH)
+    end if		
+  next x
+end sub
+
+public sub displayClearAll
+  displayClear(0, 0, lcd.width, lcd.height)
+end sub
+
+'=============================================================
+public sub displayClear(x as byte, y as byte, width as byte, height as byte)
+'clear the section of the lcd defined by parameters.
+	lcd.forecolor = 0
+	lcd.fill(x, y, width, height)
+	lcd.forecolor = 1
+end sub
+
+public sub displayInverse
+  dim b as word = lcd.backcolor
+  dim f as word = lcd.forecolor
+  lcd.backcolor = f
+  lcd.forecolor = b
+end sub
+
+public sub displayMessage(byref msg as string)
+  displayPrintMsg(msg, 0, 0, lcd.width, lcd.height, YES)
+end sub
+
+public sub displayPrintMsg(byref msg as string, x as byte, y as byte, w as byte, h as byte, bolder as no_yes)
+'This is a popup msgbox, it prints a message on the LCD.
+  romfile.open(LCD_FIX_FONT)
+  lcd.setfont(romfile.offset)
+  lcd.textverticalspacing = 1
+  lcd.texthorizontalspacing=1
+  displayClear(x,y,w,h)
+  if bolder = YES then lcd.rectangle(x,y,x+w-1,y+h-1)
+  lcd.textalignment = PL_LCD_TEXT_ALIGNMENT_MIDDLE_CENTER
+  lcd.printaligned(msg,x+1,y+3,w-2,h-6)
+
+  displayShowClockRefreshAt = displayTimerCounter + 10
+  while displayShowClockRefreshAt >= 200
+    displayShowClockRefreshAt = displayShowClockRefreshAt - 200
+  wend
+end sub
+
+public sub displayPrintTxt(font as byte, aligment as byte, byref msg as string, x as byte, y as byte, w as byte, h as byte, bolder as no_yes)
+  select case font
+    case 0:
+	  romfile.open(LCD_FIX_FONT)
+    case 1:
+	  romfile.open(LCD_STD_FONT)
+  end select   
+  lcd.setfont(romfile.offset)
+  lcd.textverticalspacing = 1
+  lcd.texthorizontalspacing=1
+  lcd.textalignment = aligment
+  displayClear(x,y,w,h)
+  if bolder = YES then
+    lcd.rectangle(x,y,x+w-1,y+h-1)
+    lcd.printaligned(msg,x+1,y+3,w-2,h-6)
+  else
+    lcd.printaligned(msg,x,y,w,h)
+  end if
+end sub
+
+public sub displayPrint(byref font as string, byref msg as string, x as byte, y as byte)
+'Prints message, using certain font
+	romfile.open(font)
+	lcd.setfont(romfile.offset)
+	lcd.texthorizontalspacing = 1
+	'displayClear(x, y, lcd.getprintwidth(msg), lcd.fontheight)
+	lcd.print(msg, x, y)	
+end sub
+
+'PRIVATE IMPLEMENTATION
+
+sub showClock(x as byte, y as byte)
+  if displayShowClockRefreshAt = displayTimerCounter then
+    displayShowClockRefreshAt = 255
+    displayClearAll
+    if not displayOverrideTTLogo then
+      displayDrawTTSoftLogo
+    else
+      showCustomLogo
+    end if
+  end if
+  
+  if displayShowClockRefreshAt <> 255 then exit sub
+
+  dim b as byte
+  dim t as string
+
+  dim d, m as word
+  dim s as byte
+  rtc.getdata(d, m, s)
+
+  if displayTimerCounter mod 2 = 0 then
+    lcd.setpixel(0, x+37, y+8)
+    lcd.setpixel(0, x+37, y+7)
+    lcd.setpixel(0, x+38, y+8)
+    lcd.setpixel(0, x+38, y+7)
+
+	lcd.setpixel(0, x+37, y+17)
+    lcd.setpixel(0, x+37, y+16)
+    lcd.setpixel(0, x+38, y+17)
+    lcd.setpixel(0, x+38, y+16)
+  end if
+  
+  if displayTimerCounter mod 2 = 1 then
+    lcd.setpixel(1, x+37, y+8)
+    lcd.setpixel(1, x+37, y+7)
+    lcd.setpixel(1, x+38, y+8)
+    lcd.setpixel(1, x+38, y+7)
+
+	lcd.setpixel(1, x+37, y+17)
+    lcd.setpixel(1, x+37, y+16)
+    lcd.setpixel(1, x+38, y+17)
+    lcd.setpixel(1, x+38, y+16)
+	
+	romfile.open(LCD_CLOCK_DIGITS_FONT)
+	lcd.setfont(romfile.offset)
+	lcd.texthorizontalspacing = 2
+
+	b = hours(m)
+    if b<10 then t = "0" + str(b) else t = str(b)
+    lcd.print(t, x+0, y+0)
+
+	b = minutes(m)
+    if b<10 then t = "0" + str(b) else t = str(b)
+    lcd.print(t, x+42, y+0)
+
+	if s<10 then t = "0" + str(s) else t = str(s)
+    'lcd.print(t, x+83, y+0)
+	displayPrint(LCD_FIX_FONT, t, x+78, y+0)
+    lcd.line(x+78, y+9, x+88, y+9)
+	
+	if isDeviceLocked then
+	  displayPrint(LCD_FIX_FONT, "*** BLOKADA ***", x+0, y+25)
+	  exit sub
+	end if
+
+	b = weekday(d)
+		select case b
+		case PL_DOW_MONDAY:
+			t = "PON"
+		case PL_DOW_TUESDAY:
+			t = "WTO"
+		case PL_DOW_WEDNESDAY:
+			t = "SRO"
+		case PL_DOW_THURSDAY:
+			t = "CZW"
+		case PL_DOW_FRIDAY:
+			t = "PIA"
+		case PL_DOW_SATURDAY:
+			t = "SOB"
+		case PL_DOW_SUNDAY:
+			t = "NIE"
+	end select
+	
+	b = year(d)
+    if b<10 then t = t + ", 200" + str(b) else t = t + ", 20" + str(b)
+	b = month(d)
+    if b<10 then t = t + ".0" + str(b) else t = t + "." + str(b)
+	b = date(d)
+    if b<10 then t = t + ".0" + str(b) else t = t + "." + str(b)
+    displayPrint(LCD_FIX_FONT, t, x+0, y+25)
+  end if
+end sub
+
+sub showCustomLogo
+  lcd.line(0, 0, lcd.width-1, 0)
+  displayPrint(LCD_FIX_FONT, displayOverrideTTLogo1, 2, 2)
+  displayPrint(LCD_FIX_FONT, displayOverrideTTLogo2, 2, 12)
+  displayPrint(LCD_FIX_FONT, displayOverrideTTLogo3, 2, 22)
+  lcd.line(0, 30, lcd.width-1, 30)
+end sub
+
+public sub displayDrawTTSoftLogo
+  'lcd.line(5, 0, 0, 10)
+  'lcd.line(0, 10, 10, 10)  
+  'lcd.line(10, 10, 0, 30)
+  'lcd.line(10, 30, 20, 10)
+  'lcd.line(20, 10, 30, 10)
+  'lcd.line(45, 0, 5, 0)
+  
+  'lcd.line(0, 30, 40, 30)
+  'lcd.line(40, 30, 45, 20)
+  'lcd.line(45, 20, 35, 20)
+  'lcd.line(35, 20, 45, 0)
+  'lcd.line(35, 0, 25, 20)
+  'lcd.line(25, 20, 15, 20)
+  
+  lcd.line(0, 0, lcd.width-1, 0)
+  displayPrint(LCD_STD_FONT, "ISOCOM Sp z o. o.", 5, 2)
+  displayPrint(LCD_FIX_FONT, "http://www.isocom.eu", 5, 12)
+  displayPrint(LCD_STD_FONT, "edziecko@isocom.eu", 5, 22)
+  lcd.line(0, 30, lcd.width-1, 30)
+end sub

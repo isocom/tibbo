@@ -1,0 +1,6 @@
+declare tcpttoudpUDPSocketNumber as byte
+declare tcpttoudpSerialPortNumber as byte
+
+declare sub tcpttoudpInit(socketNumber as byte, serialNumber as byte)
+declare sub tcpttoudpSockProcess
+declare sub tcpttoudpSerialProcess

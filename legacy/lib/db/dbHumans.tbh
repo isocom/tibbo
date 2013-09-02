@@ -1,0 +1,7 @@
+type HumanRecord
+  name as string(32)
+end type
+
+declare sub dbHumansInit
+declare function dbHumansRead as HumanRecord
+declare sub dbHumansAdd(human as HumanRecord)

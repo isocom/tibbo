@@ -1,0 +1,16 @@
+<?
+  include "../../lib/common/html.tbh"
+  dim slot as byte = val(htmlGetHttpArgument(sock.httprqstring, "slot="))
+  fd.filenum = slot
+  dim fileSize as dword = fd.filesize
+  dim currPos as dword = fd.pointer
+  
+  fd.setpointer(1)
+  if fileSize > 0 and fd.pointer = 1 then
+    while fd.pointer <= fileSize
+      sock.setdata(fd.getdata(64))
+      sock.send
+    wend
+  end if
+  fd.setpointer(currPos)
+?>

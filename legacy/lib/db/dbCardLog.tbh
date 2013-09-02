@@ -1,0 +1,11 @@
+type CardLogRecord
+  cardRef as word  'bytes 1-2 (2)
+  dayCount as word 'bytes 3-4 (2)
+  minCount as word 'bytes 5-6 (2)
+  seconds as byte  'bytes 7-7 (1)
+  status as byte   'bytes 8-8 (1)
+end type
+
+declare sub dbCardLogInit
+declare function dbCardLogRead as CardLogRecord
+declare function dbCardLogAdd(card as CardLogRecord) as word

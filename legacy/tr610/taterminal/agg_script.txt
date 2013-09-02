@@ -1,0 +1,43 @@
+Entity		Context	flag		Value
+	
+::info		root				<R=<TR610 / EM1000-3_20_01><timerecorder>>
+::children	root		
+::variables	root				<R=<version><<<version><S>> <M=1> <X=1>><Version><1><0><^><remote|General><^>>
+								~~<R=<date><<<date><D>> <M=1> <X=1>><Date/Time><1><0><^><remote|General><^>>
+								~~<R=<modtime><<<variable><S>> <<modtime><D><F=N>>><Modification time><1><0><^><^><^>>
+					ON,S,Y		~~<R=<ON><<<ON><S><F=C>><M=1><X=1>><Owner Name><1><1><^><remote|General><^>>
+					DN,S,Y		~~<R=<DN><<<DN><S><F=C>><M=1><X=1>><Device Name><1><1><^><remote|General><^>>
+					PW,S,Y		~~<R=<PW><<<PW><S><F=C>><M=1><X=1>><Password><1><1><^><remote|General><^>>
+					MM,S,Y		~~<R=<MM><<<MM><I><S=<Wall Mount=0><Desktop=1>>><M=1><X=1>><Mount><1><1><^><remote|General><^>>
+					DH,S,Y		~~<R=<DH><<<DH><I><S=<Disabled=0><Enabled=1>>><M=1><X=1>><DHCP><1><1><^><remote|Network><^>>
+					IP,S,Y		~~<R=<IP><<<IP><S><F=C>><M=1><X=1>><IP Address><1><1><^><remote|Network><^>>
+					GI,S,Y		~~<R=<GI><<<GI><S>><M=1><X=1>><Gateway><1><1><^><remote|Network><^>>
+					NM,S,Y		~~<R=<NM><<<NM><S>><M=1><X=1>><Netmask><1><1><^><remote|Network><^>>
+					DI,S,Y		~~<R=<DI><<<DI><S>><M=1><X=1>><Destination IP><1><1><^><remote|Network><^>>
+					DP,S,Y		~~<R=<DP><<<DP><S>><M=1><X=1>><Destination Port><1><1><^><remote|Network><^>>
+					AR,S,Y		~~<R=<AR><<<AR><I><S=<Disabled=0><Enabled=1>>><M=1><X=1>><Auto Register><1><1><^><remote|Network><^>>
+					CT,S,Y		~~<R=<CT><<<CT><S>><M=1><X=1>><Connection Timeout><1><1><^><remote|Network><^>>						
+					WL,S,Y		~~<R=<WL><<<WL><I><S=<Disabled=0><Enabled=1>>><M=1><X=1>><White List><1><1><^><remote|White List><^>>
+					TBL_WL,T,Y	~~<R=<TBL_WL><<<ID><S><D=Card ID>><<NAME><S><D=Cardholder Name>><M=0><X=255>><White List Table><1><1><^><remote|White List><^>>
+					TF,S,Y		~~<R=<TF><<<TF><I><S=<Disabled=0><Enabled=1>>><M=1><X=1>><Time Server Connection><1><1><^><remote|Time Server><^>>
+					TS,S,Y		~~<R=<TS><<<TS><S>><M=1><X=1>><Server IP><1><1><^><remote|Time Server><^>>
+					TZ,S,Y		~~<R=<TZ><<<TZ><I><S=<-12:00=0><-11:00=1><-10:00=2><-9:00=3><-8:00=4><-7:00=5><-6:00=6><-5:00=7><-4:30=8><-4:00=9><-3:30=10><-3:00=11>
+									~~<-2:00=12><-1:00=13><+0:00=14><+1:00=15><+2:00=16><+3:00=17><+3:30=18><+4:00=19><+4:30=20><+5:00=21><+5:30=22>
+									~~<+5:45=23><+6:00=24><+6:30=25><+7:00=26><+8:00=27><+9:00=28><+9:30=29><+10:00=30><+11:00=31><+12:00=32><+13:00=33>>><M=1><X=1>><Time Zone><1><1><^><remote|Time Server><^>>
+::functions	root				<R=<hash><<<context><S>><<variable><S>><M=1><X=1>><<<hash><I>><M=1><X=1>><Table Hash><^><^>>
+								~~<R=<finishTable>< <<context><S>> <<variable><S>> <M=1> <X=1>><<<hash><I>><M=1><X=1>><Finish Table><^><^>>
+								~~<R=<startTable><<<context><S>><<variable><S>><M=1><X=1>><<M=0><X=0>><Start Table><^><^>>
+								~~<R=<addRecord><<<context><S>><<variable><S>><<record><S>><M=1><X=1>><<M=0><X=0>><Add Record><^><^>>
+								~~<R=<removeRecord><<<context><S>><<variable><S>><<id><S>><M=1><X=1>><<M=0><X=0>><Remove Record><^><^>>
+								~~<R=<updateRecord><<<context><S>><<variable><S>><<record><S>><M=1><X=1>><<M=0><X=0>><Update Record><^><^>>
+								~~<R=<putRecords><<<record><S>><M=1><X=1>><<M=0><X=0>><Put Record><^><^>>
+								~~<R=<login><<<challenge><S>><M=1><X=1>><<<owner><S>><<name><S>><<response><S>><M=1><X=1>><Login><^><^>>
+								~~<R=<register><<M=0><X=0>><<<password><S>><M=1><X=1>><Auto Register><^><^>>
+								~~<R=<synchronized><<M=0><X=0>><<M=0><X=0>><Synchronized><^><^>>
+								~~<R=<buzz><<M=0><X=0>><<M=0><X=0>><Buzz><^><remote>>
+								~~<R=<init><<M=0><X=0>><<<status><S>><M=1><X=1>><Initialize><^><remote>>
+								~~<R=<reboot><<M=0><X=0>><<<status><S>><M=1><X=1>><Reboot><^><remote>>
+								~~<R=<Z><<M=0><X=0>><<<status><S>><M=1><X=1>><Open Door><^><remote>>
+								~~<R=<J><<M=0><X=0>><<<status><S>><M=1><X=1>><Clear Log><^><remote>>
+								~~<R=<M><<M=0><X=0>><<<status><S>><M=1><X=1>><Format Disk><^><remote>>
+::events	root	CR,Y		<R=<CR><<<type><I><S=<IN=0><OUT=1><TEMP IN=2><TEMP OUT=3>><D=Event Type>><<id><S><D=Card ID>><<date><D><D=Date>><M=1><X=1>><Card Read><^><2><remote>>			

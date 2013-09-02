@@ -1,0 +1,333 @@
+#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202
+
+	#define LED_INDICATION 1			'0: two status LEDs only, 1: per/channel indication (10 LEDs)
+
+	const NUM_CHANNEL_BUFFERS=40	'number of buffer pages allocated to one channel
+	const MAX_NUM_SERIAL_PORTS=4		'max possible number of serial ports (must not exceed ser.numofports)
+	const STG_FILE="settings.txt"		'settings file
+	const SDF_FILE="sdf.txt"			'SDF file used by the DS Manager
+	const GENERAL_SETTINGS_DESCR_FILE="general_htm_descr.txt"
+	const INT_BASE=PL_IO_NUM_16_INT0	'first interrupt line correcponds to I/O line 16
+
+	const SER0_CTS=PL_INT_NUM_0			'must be from pl_int_num range (NOT pl_io_num)
+	const SER0_RTS=PL_IO_NUM_0			'must be from pl_io_num range
+	const SER0_DSR=PL_IO_NUM_20_INT4	'must be from pl_io_num range
+	const SER0_DTR=PL_IO_NUM_4			'must be from pl_io_num range
+		
+	const SER1_CTS=PL_INT_NUM_1			'must be from pl_int_num range (NOT pl_io_num)
+	const SER1_RTS=PL_IO_NUM_1			'must be from pl_io_num range
+	const SER1_DSR=PL_IO_NUM_21_INT5	'must be from pl_io_num range
+	const SER1_DTR=PL_IO_NUM_5			'must be from pl_io_num range
+
+	const SER2_CTS=PL_INT_NUM_2			'must be from pl_int_num range (NOT pl_io_num)
+	const SER2_RTS=PL_IO_NUM_2			'must be from pl_io_num range
+	const SER2_DSR=PL_IO_NUM_22_INT6	'must be from pl_io_num range
+	const SER2_DTR=PL_IO_NUM_6			'must be from pl_io_num range
+
+	const SER3_CTS=PL_INT_NUM_3			'must be from pl_int_num range (NOT pl_io_num)
+	const SER3_RTS=PL_IO_NUM_3			'must be from pl_io_num range
+	const SER3_DSR=PL_IO_NUM_23_INT7	'must be from pl_io_num range
+	const SER3_DTR=PL_IO_NUM_7			'must be from pl_io_num range
+
+	#if PLATFORM_ID=EM1000
+		'additional selection of serial port modes
+		const SER0_HDFD=PL_IO_NUM_32	'HIGH for full-duplex, LOW for half-duplex
+		const SER0_RSMD=PL_IO_NUM_33	'HIGH for RS422/485, LOW for RS232
+		const SER1_HDFD=PL_IO_NUM_34
+		const SER1_RSMD=PL_IO_NUM_35
+		const SER2_HDFD=PL_IO_NUM_36
+		const SER2_RSMD=PL_IO_NUM_37
+		const SER3_HDFD=PL_IO_NUM_38
+		const SER3_RSMD=PL_IO_NUM_39
+	#endif
+
+#elif PLATFORM_ID=EM500
+
+	#define LED_INDICATION 0			'0: two status LEDs only, 1: per/channel indication (10 LEDs)
+
+	const NUM_CHANNEL_BUFFERS=8		'number of buffer pages allocated to one channel
+	const MAX_NUM_SERIAL_PORTS=1		'max possible number of serial ports (must not exceed ser.numofports)
+	const STG_FILE="settings2.txt"		'settings file
+	const SDF_FILE="sdf4.txt"			'SDF file used by the DS Manager
+	const GENERAL_SETTINGS_DESCR_FILE="general_htm_descr4.txt"
+
+	const SER0_CTS=PL_IO_NUM_0_INT0		'must be from pl_int_num range (NOT pl_io_num)
+	const SER0_RTS=PL_IO_NUM_2			'must be from pl_io_num range
+	const SER0_DSR=PL_IO_NUM_1_INT1		'must be from pl_io_num range
+	const SER0_DTR=PL_IO_NUM_3			'must be from pl_io_num range
+
+#else									'EM1202EV/DS1202, EM1206/EV, DS1206...
+
+	#define LED_INDICATION 0			'0: two status LEDs only, 1: per/channel indication (10 LEDs)
+
+	const NUM_CHANNEL_BUFFERS=40		'number of buffer pages allocated to one channel
+	const MAX_NUM_SERIAL_PORTS=4		'max possible number of serial ports (must not exceed ser.numofports)
+	const STG_FILE="settings.txt"		'settings file
+
+	#if PLATFORM_ID=DS1206				
+		const SDF_FILE="sdf3.txt"		'SDF file used by the DS Manager
+		const GENERAL_SETTINGS_DESCR_FILE="general_htm_descr3.txt"
+	#else
+		const SDF_FILE="sdf2.txt"		'SDF file used by the DS Manager
+		const GENERAL_SETTINGS_DESCR_FILE="general_htm_descr2.txt"
+	#endif
+		
+	enum MAPPING
+		M0,M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,M14
+	end enum
+
+	#if PLATFORM_ID=DS1202
+		'OLD MAPPING (EM1202EV/DS1202)
+		'serial port lines:	RX0	TX0	RX1	TX1	RX2	TX2	RX3	TX3
+		'interrupt lines:	0	4	1	5	2	6	3	7
+
+		const L0=PL_IO_NUM_0_RX0_INT0
+		const L1=PL_IO_NUM_1_TX0_INT4
+		const L2=PL_IO_NUM_2_RX1_INT1
+		const L3=PL_IO_NUM_3_TX1_INT5
+		const L4=PL_IO_NUM_4_RX2_INT2
+		const L5=PL_IO_NUM_5_TX2_INT6
+		const L6=PL_IO_NUM_6_RX3_INT3
+		const L7=PL_IO_NULL
+		
+		const I0=PL_INT_NUM_0
+		const I1=PL_INT_NUM_4
+		const I2=PL_INT_NUM_1
+		const I3=PL_INT_NUM_5
+		const I4=PL_INT_NUM_2
+		const I5=PL_INT_NUM_6
+		const I6=PL_INT_NUM_3
+		const I7=PL_IO_NULL
+	#else
+		'NEW MAPPING (EM1206, DS1206)
+		'serial port lines:	RX0	TX0	RX1	TX1	RX2	TX2	RX3	TX3
+		'interrupt lines:	0	1	2	3	4	5	6	7
+
+		const L0=PL_IO_NUM_0_RX0_INT0
+		const L1=PL_IO_NUM_1_TX0_INT1
+		const L2=PL_IO_NUM_2_RX1_INT2
+		const L3=PL_IO_NUM_3_TX1_INT3
+		const L4=PL_IO_NUM_4_RX2_INT4
+		const L5=PL_IO_NUM_5_TX2_INT5
+		const L6=PL_IO_NUM_6_RX3_INT6
+		#if PLATFORM_ID=EM1206
+			const L7=PL_IO_NUM_7_TX3_INT7
+		#else	
+			const L7=PL_IO_NUM_7_EMPTY
+		#endif
+	
+		const I0=PL_INT_NUM_0
+		const I1=PL_INT_NUM_1
+		const I2=PL_INT_NUM_2
+		const I3=PL_INT_NUM_3
+		const I4=PL_INT_NUM_4
+		const I5=PL_INT_NUM_5
+		const I6=PL_INT_NUM_6
+		const I7=PL_INT_NUM_7
+	#endif
+#endif
+
+const SOCK_UDP_TXBUFF_SIZE=2	'this is for the RX buffer for UDP commands (change not recommended)
+const SOCK_UDP_RXBUFF_SIZE=2	'this is for the TX buffer for UDP replies  (change not recommended)
+const SOCK_HTTP_TXBUFF_SIZE=2	'number of buffer pages allocated for HTTP sockets (change not recommended)
+
+
+const BUTTON_CONST_QUICK_INIT=5 'in 0.5 intervals -- how long you need to press button for quick init
+const CONNECTION_HOLDOFF_ON_RST=6 'connection holdoff const (in seconds)- don't decrease, can't see meaningful LED patterns then
+const CMD_ESC_CHAR="@" 'for specifying channel (port) number
+
+'these timeouts are in seconds
+const LOGIN_TOUT_CONST_INBAND=60
+const LOGIN_TOUT_CONST_HTTP=60
+const LOGIN_TOUT_CONST_TELNET=60
+const LOGIN_TOUT_CONST_UDP=60
+const LOGIN_TOUT_CONST_SERIAL=0 'no timeout
+
+
+const PAT_ONE_SHORT_GREEN_LOOP=		"---------------G~"
+const PAT_BOTH_LOOP=				"B~"
+const PAT_GREEN_LOOP=				"G~"
+const PAT_TWO_SHORT_RED=			"-----RRRRRR--R-R"
+const PAT_THREE_SHORT_RED=			"-----------R-R-R"
+const PAT_TWO_SHORT_GREEN=			"-------------G-G"
+const PAT_THREE_SHORT_GREEN=		"-----------G-G-G"
+const PAT_BLINK_BOTH_IN_TURNS_FAST=	"GRGRGRGR**"
+const PAT_THREE_BOTH_ONCE=			"--B-B-B--"
+const PAT_BLINK_BOTH_IN_TURNS=		"RG"
+const PAT_BLINK_RED_SLOW=			"--RR"
+const PAT_GREEN_ON=					"G"
+const PAT_BOTH_ON=					"B"
+const PAT_GREEN_GAP=				"-GGGG**"
+const PAT_RED_ON_GREEN_GAP=			"RBBBB**"
+const PAT_BLINK_GREEN=				"-G"
+const PAT_GAP=						"-**"
+const PAT_LONG_GREEN=				"GGGGGGGG-"
+const PAT_LONG_RED=					"RRRRRRRR-"
+const BEEP_LONG=					"BBBBBB"
+const BEEP_SHORT=					"BB"
+
+const NOTIF_BIT_POSITION_DSR=&b00000100
+const NOTIF_BIT_POSITION_DTR=&b00001000
+const NOTIF_BIT_POSITION_CTS=&b00010000
+const NOTIF_BIT_POSITION_RTS=&b00100000
+
+
+
+enum sockets
+	SOCK_UDP,
+	SOCK_NOTIF,
+	SOCK_COMM=SOCK_NOTIF+MAX_NUM_SERIAL_PORTS,
+	SOCK_HTTP=SOCK_COMM+MAX_NUM_SERIAL_PORTS
+end enum
+
+CONST NUM_HTTP_SOCKETS=3
+
+enum bb_modes
+	BB_7,
+	BB_8	
+end enum
+
+enum br_modes
+	BR_1200,
+	BR_2400,
+	BR_4800,
+	BR_9600,
+	BR_19200,
+	BR_38400,
+	BR_57600,
+	BR_115200,
+	BR_150,
+	BR_300,
+	BR_600,
+	BR_28800,
+	BR_230400,
+	BR_460800
+end enum
+
+enum pr_modes
+	PR_NONE,
+	PR_EVEN,
+	PR_ODD,
+	PR_MARK,
+	PR_SPACE
+end enum
+
+enum fc_modes
+	FC_DIS,
+	FC_EN
+end enum
+
+enum en_x_flags			
+	EN_X_FLAGS_NORMAL=2,'Normal mode (it is always normal)
+	EN_X_FLAGS_PROG,	'Programming mode
+	EN_X_FLAGS_ERROR,	'Error mode
+	EN_X_FLAGS_IP,		'Own IP status
+	EN_X_FLAGS_CONN,	'Connection mode
+	EN_X_FLAGS_ES=8,	'Ethernet-->serial overflow
+	EN_X_FLAGS_SE		'Serial-->Ethernet overflow
+end enum
+
+enum en_routing_modes
+	RM_SERVER,
+	RM_SERVER_CLIENT,
+	RM_CLIENT
+end enum
+
+enum en_connection_modes
+	CM_IMMEDIATELY,
+	CM_DATA_COMMAND,
+	CM_COMMAND,
+	CM_COMMAND_DSR
+end enum
+
+enum cmd_modes 'in the order of least to highest priority
+	CMD_MODE_NONE,
+	CMD_MODE_INBAND,
+	CMD_MODE_HTTP,
+	CMD_MODE_TELNET,
+	CMD_MODE_UDP,
+	CMD_MODE_SERIAL
+end enum
+
+enum login_comparison_codes
+	LC_WILL_ACCEPT,
+	LC_WILL_ACCEPT_REPEATED_LOGIN,
+	LC_WILL_ACCEPT_LOWER_IN_PROGRESS,
+	LC_WILL_REJECT_HIGHER_IN_PROGRESS,
+	LC_WILL_REJECT_SAME_IN_PROGRESS
+end enum
+
+enum last_65535
+	ND_PORT_LAST,
+	ND_PORT_65535
+end enum
+
+enum quick_init_states
+	QI_NULL,
+	QI_OK,
+	QI_NG
+end enum
+
+declare x_flags as string(9)
+declare error_mode as no_yes
+declare pat_canint as no_yes
+declare sock_connection_holdoff_tmr(MAX_NUM_SERIAL_PORTS) as byte
+declare overrun_se(MAX_NUM_SERIAL_PORTS) as no_yes
+declare overrun_es(MAX_NUM_SERIAL_PORTS) as no_yes
+declare login_mode as cmd_modes
+declare login_sock as byte
+declare login_data as string(32)
+declare login_tout as word
+declare dsr_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+declare dtr_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+declare cts_mapping(MAX_NUM_SERIAL_PORTS) as pl_io_num
+declare port_in_use(MAX_NUM_SERIAL_PORTS) as no_yes
+declare io_state_changed(MAX_NUM_SERIAL_PORTS) as no_yes
+declare dsr_state_curr(MAX_NUM_SERIAL_PORTS), dsr_state_prev(MAX_NUM_SERIAL_PORTS) as byte
+declare dtr_state_curr(MAX_NUM_SERIAL_PORTS), dtr_state_prev(MAX_NUM_SERIAL_PORTS) as byte
+declare cts_state_curr(MAX_NUM_SERIAL_PORTS), cts_state_prev(MAX_NUM_SERIAL_PORTS) as byte
+declare rts_state_curr(MAX_NUM_SERIAL_PORTS), rts_state_prev(MAX_NUM_SERIAL_PORTS) as byte
+declare most_resent_notif_dest_ip(MAX_NUM_SERIAL_PORTS) as string(15)
+declare most_resent_notif_dest_port(MAX_NUM_SERIAL_PORTS) as word
+declare dhcp_lease_time as dword
+declare overriding_destination_set(MAX_NUM_SERIAL_PORTS) as no_yes
+declare can_show_data_transmission(MAX_NUM_SERIAL_PORTS) as no_yes
+declare quick_init_flag as quick_init_states
+
+declare param_dh as no_yes
+declare param_rm(MAX_NUM_SERIAL_PORTS) as en_routing_modes
+declare param_sf(MAX_NUM_SERIAL_PORTS) as no_yes
+declare param_cm(MAX_NUM_SERIAL_PORTS) as en_connection_modes
+declare param_dt(MAX_NUM_SERIAL_PORTS) as no_yes
+declare param_ds(MAX_NUM_SERIAL_PORTS) as low_high
+declare param_rc(MAX_NUM_SERIAL_PORTS) as no_yes
+declare param_op(MAX_NUM_SERIAL_PORTS) as no_yes
+declare param_nb(MAX_NUM_SERIAL_PORTS) as byte
+declare param_nd(MAX_NUM_SERIAL_PORTS) as last_65535
+
+
+declare function set_comm_channel_buffers(channel_num as byte, num_buffers as byte) as ok_ng
+declare function proc_device_op(s as string(1)) as string(1)
+declare sub device_setting_set(sname as string(MAX_SETTING_NAME_LEN), index as byte, s as string)
+declare function device_setting_check(byref setting_name as string,byref setting_val as string) as ok_ng
+declare function device_spec_arg_sg(byref setting_name as string, byref setting_val as string, byref stg_num as byte, rw as en_stg_rdwr) as en_stg_status
+declare function baudrate_set(br_mode as br_modes) as ok_ng
+declare function baudrate_get() as br_modes
+declare sub set_net_ip
+declare sub set_ser_channel_for_prog_mode(channel_num as byte)
+declare sub set_ser_channel_for_normal_mode(channel_num as byte)
+declare sub enter_ser_prog_mode(channel_num as byte)
+declare sub exit_ser_prog_mode(channel_num as byte)
+declare sub set_sock_connmode(channel_num as byte)
+declare sub decide_on_ser_enabled(channel_num as byte)
+declare sub decide_on_sock_connect(channel_num as byte)
+declare function get_x_flags_net() as string(10)
+declare function get_x_flags_ser(channel_num as byte) as string(10)
+declare function login(new_login as cmd_modes, cmd_data as string(32), sock as byte) as ok_ng
+declare sub logout()
+declare function compare_logins(new_login as cmd_modes, cmd_data as string(32), sock as byte) as login_comparison_codes
+declare sub reset_login_timeout
+declare function init_settings_of_one_channel(channel_num as byte) as ok_ng
+declare sub add_serial_channel_to_login_data(channel_num as byte)
+declare sub remove_serial_channel_from_login_data(channel_num as byte)
+declare function check_if_serial_channel_is_in_login_state(channel_num as byte) as no_yes

@@ -1,0 +1,30 @@
+include "db.tbh"
+include "dbCardLog.tbh"
+include "../common/common.tbh"
+
+const RECORD_SIZE = 8
+const TERMINATOR = 0
+
+public sub dbCardLogInit
+  dbInitTable("CardLog", RECORD_SIZE, 20000)
+end sub
+
+public function dbCardLogRead as CardLogRecord
+  dim tmp as string = dbCurrentRecord  
+  dbCardLogRead.cardRef  = commonWordFromBES(mid(tmp, 1, 2))
+  dbCardLogRead.dayCount = commonWordFromBES(mid(tmp, 3, 2))
+  dbCardLogRead.minCount = commonWordFromBES(mid(tmp, 5, 2))
+  dbCardLogRead.seconds  = asc(mid(tmp, 7, 1))
+  dbCardLogRead.status   = asc(mid(tmp, 8, 1))
+end function
+
+public function dbCardLogAdd(entry as CardLogRecord) as word
+  dim r as string(RECORD_SIZE) = ""
+  r = r + commonWordToBES(entry.cardRef)
+  r = r + commonWordToBES(entry.dayCount)
+  r = r + commonWordToBES(entry.minCount)
+  r = r + chr(entry.seconds)
+  r = r + chr(entry.status)
+  dbUse("CardLog")
+  dbCardLogAdd = dbAdd(r)
+end function

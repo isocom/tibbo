@@ -1,0 +1,9 @@
+declare SOCK_HTTP_FIRST as byte
+const NUM_HTTP_SOCKETS=3
+
+declare sub htmlInit
+declare sub htmlWrite(byref s as string)
+'declare sub html_spec_chr_convert(byref http_req_string as string)
+
+declare function htmlGetHttpArgument(byref http_req_string as string, byref argument as string) as string
+declare function htmlModHttpArgument(byref http_req_string as string, byref argument as string, byref arg_val as string) as string

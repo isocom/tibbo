@@ -1,0 +1,15 @@
+<?
+  include "../../lib/common/html.tbh"
+  dim fileName as string = htmlGetHttpArgument(sock.httprqstring, "fileName=")
+  fd.filenum = 0
+  if fd.open(fileName) = PL_FD_STATUS_OK then
+    dim fileSize as dword = fd.filesize
+    if fileSize > 0 and fd.pointer = 1 then
+      while fd.pointer <= fileSize
+	    sock.setdata(fd.getdata(64))
+        sock.send
+      wend
+    end if
+	fd.close
+  end if
+?>

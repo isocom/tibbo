@@ -1,0 +1,28 @@
+Setting	Setting											Setting 
+Name	String											Data
+
+>>CT	Connection Timeout(0-99, in 10ms, 0=disable)	S,I,2	^
+>>TP	Transport Protocol								B,L,0-UDP;1-TCP;	^
+>>BU	Broadcast UDP									B,L,0-Disabled;1-Enabled;	^
+>>IB	Inband Commands 								B,L,0-Disabled;1-Enabled;	^
+>>RM	Routing Mode 									B,L,0-Server;1-Server/Client;2-Client;	^
+>>SF	Source IP Filtering 							B,L,0-Disabled;1-Enabled;	^
+>>PN	Port Number(0-65534)							S,I,5	^
+>>CM	Connection Mode 								B,L,0-Immediately;1-On data or command;2-On command;3-On command or DSR=HI;	^
+>>DI	Destination IP-address 							S,I,15	^
+>>DP	Destination Port Number(0-65535)				S,I,5	^
+>>SI	Serial Interface 								B,L,0-Full-duplex (RS232);1-Half-duplex (RS485);2-Full-duplex (RS422);	^
+>>ND	Notification destination						B,L,0- Last port;1- Port 65535;	^
+>>FC	Flow Control 									B,L,0-Disabled;1-Enabled;	^
+>>DT	DTR Mode 										B,L,0-Idle;1-Connection status;	^
+>>DS	DTR Startup Mode 								B,L,0-LOW on startup;1-HIGH on startup;	^
+>>BR	Baudrate										B,L,0-1200bps;1-2400bps;2-4800bps;3-9600bps;4-19200bps;5-38400bps;6-57600bps;7-115200bps;8-150bps;9-300bps;10-600bps;11-28800bps;12-230400bps;13-460800bps;	^
+>>PR	Parity											B,L,0-Off;1-Even;2-odd;3-Mark;4-Space;	^
+>>BB	Bits Per Byte 									B,L,0-7 bits;1-8 bits;	^
+>>MD	Maximum Intercharacter Delay(0-255)				S,I,3	^
+>>SE	Soft Entry 										B,L,0-Disabled;1-Type 1;2-Type 2;	^
+>>EC	Escape Character(0-255) 						S,I,3	^
+>>RC	On-the-fly Commands 							B,L,0-Disabled;1-Enabled;	^
+>>OP	On-the-fly Password 							B,L,0-Disabled;1-Enabled;	^
+>>NB	Notification bitmask 							S,I,2	^
+>>ND	Notification destination						B,L,0-Last port;1-Port 65535;	^

@@ -1,0 +1,209 @@
+include "global.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/common/settings.tbh"
+include "../../lib/tr610/display.tbh"
+
+dim javaserverTimerCounter as long = 0
+dim javaserverServerLastSeen as long = 0
+dim javaserverPingCounter as byte = 0
+dim javaserverNoCommunication as boolean = false
+
+declare sub usaPing
+declare sub sendPing
+declare sub processPing(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+declare sub processSay(datagram as string)
+declare sub processAddPoints(datagram as string)
+declare sub processPriceList(datagram as string)
+
+public sub javaserverInit
+  sock.num = SOCKET_JAVA
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.targetip = settingsGet("BP",0)
+  sock.targetport = "1976"
+  sock.connect
+  
+  sock.num = SOCKET_USA
+  sock.rxbuffrq(1)
+  sock.txbuffrq(2)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+  sock.targetip = "65.99.213.252"
+  sock.targetport = "8483"
+  sock.connect  
+end sub
+
+public sub javaserverTimer
+  javaserverTimerCounter = javaserverTimerCounter + 1
+
+  if javaserverTimerCounter mod 2000 = 0 then usaPing
+
+  if javaserverTimerCounter mod 190 = 0 then sendPing
+  if (javaserverTimerCounter - javaserverServerLastSeen > 600) and not javaserverNoCommunication then
+    beep.play("BBBBBBBBBBBBBBBBB", PL_BEEP_CANINT)
+	javaserverNoCommunication = true
+	displayPrint(LCD_FIX_FONT, "Brak komunikacji", 2, 22)
+  end if
+  if javaserverTimerCounter - javaserverServerLastSeen > 600*5 then sys.reboot
+end sub
+
+public sub javaserverReadDatagram
+  dim datagram as string
+  datagram = sock.getdata(255)
+
+  dim command as string = token(datagram, 0, TAB)
+
+  if command = "P" then processPing(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), val(token(datagram, 3, TAB)), val(token(datagram, 4, TAB)), val(token(datagram, 5, TAB)), val(token(datagram, 6, TAB)))
+  if command = "REBOOT" then sys.reboot
+  if command = "SAY" then processSay(datagram)
+  if command = "ADD_POINTS" then processAddPoints(datagram)
+  if command = "PLIST" then processPriceList(datagram)
+end sub
+
+'==================================================================================
+'==================================================================================
+'==================================================================================
+
+sub usaSend(byref s as string)
+  sock.num = SOCKET_USA
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata(s)
+  sock.send
+end sub
+
+sub usaPing
+  usaSend("DEVPING" + chr(TAB) + "TTD-0006-03" + chr(TAB) + settingsGet("SN",0) + chr(TAB) + net.ip + chr(TAB) + settingsGet("LC", 0) + " sig " + settingsGetSignature + chr(TAB))
+end sub
+
+sub sendPing
+  dim i as byte
+  dim a as byte = 0
+  dim t as byte = 0
+  for i = 1 to 32
+    if mid(DEF_BIKES, i, 1) <> chr(0) then t = t + 1
+	if devcommBikeStatus(i) then a = a + 1
+  next i
+  
+  sock.num = SOCKET_JAVA
+  sock.setdata("P" + chr(TAB) + settingsGet("SN",0) + chr(TAB) + settingsGet("LC", 0) + chr(TAB) + str(t) + chr(TAB) + str(a) + chr(TAB))
+  sock.send
+end sub
+
+public sub javaserverSendCardDetected(sn as string)
+  sock.num = SOCKET_JAVA
+  sock.setdata("CARD" + chr(TAB) + sn + chr(TAB))
+  sock.send
+end sub
+
+public sub javaserverSendBikeIn(sn as string, points as long)
+  beep.play("*B-*B-*B-", PL_BEEP_CANINT)
+  sock.num = SOCKET_JAVA
+  sock.setdata("BIKE_IN" + chr(TAB) + sn + chr(TAB) + lstri(points) + chr(TAB))
+  sock.send
+end sub
+
+public sub javaserverSendBikeOut(sn as string, points as long)
+  beep.play("B-B-", PL_BEEP_CANINT)
+  sock.num = SOCKET_JAVA
+  sock.setdata("BIKE_OUT" + chr(TAB) + sn + chr(TAB) + lstri(points) + chr(TAB))
+  sock.send
+end sub
+
+public sub javaserverSendPoints(sn as string, p as long)
+  sock.num = SOCKET_JAVA
+  sock.setdata("POINTS" + chr(TAB) + sn + chr(TAB) + lstri(p) + chr(TAB))
+  sock.send
+end sub
+
+public sub javaserverSendPointsAdded(sn as string)
+  sock.num = SOCKET_JAVA
+  sock.setdata("POINTS_ADDED" + chr(TAB) + sn + chr(TAB))
+  sock.send
+end sub
+
+sub processPing(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+  dim dc as word = daycount(y, mm, d)
+  dim mc as word = mincount(h, m)
+  if javaserverPingCounter = 0 then rtc.setdata(dc, mc, s)
+  
+  javaserverServerLastSeen = javaserverTimerCounter  
+  javaserverPingCounter = javaserverPingCounter + 1
+  if javaserverNoCommunication then
+    javaserverNoCommunication = false
+	displayPrint(LCD_FIX_FONT, "                ", 2, 22)
+  end if
+end sub
+
+sub processSay(datagram as string)
+  dim lines as byte = val(token(datagram, 1, TAB))
+  dim i as byte
+  for i = 1 to lines
+    displayPrint(LCD_STD_FONT, token(datagram, 1+i, TAB), 0, i*10-10)
+  next i
+end sub
+
+sub processAddPoints(datagram as string)
+  if token(datagram, 1, TAB) = devcommCurrentCard then devcommNewCardPoints = lval(token(datagram, 2, TAB))
+end sub
+
+sub processPriceList(datagram as string)
+  dim pricePos as byte = val(token(datagram, 1, TAB))
+  devcommPriceList = chr(7) + chr(pricePos) + chr(1)
+  dim pos as byte = val(token(datagram, 2, TAB))
+  dim i as byte
+  dim j as byte
+  for i = 1 to pos
+    j = i*3
+    devcommPriceList = devcommPriceList + chr(val(token(datagram, j, TAB)) / 256) + chr(val(token(datagram, j, TAB)) mod 256)
+    j = i*3+1
+    devcommPriceList = devcommPriceList + chr(val(token(datagram, j, TAB)) / 256) + chr(val(token(datagram, j, TAB)) mod 256)
+    j = i*3+2
+    devcommPriceList = devcommPriceList + chr(val(token(datagram, j, TAB)) / 256) + chr(val(token(datagram, j, TAB)) mod 256)
+  next i
+  
+  select case pricePos
+    case 0
+      settingsSet("P0", 0, devcommPriceList)
+    case 1
+      settingsSet("P1", 0, devcommPriceList)
+    case 2
+      settingsSet("P2", 0, devcommPriceList)
+    case 3
+      settingsSet("P3", 0, devcommPriceList)
+    case 4
+      settingsSet("P4", 0, devcommPriceList)
+    case 5
+      settingsSet("P5", 0, devcommPriceList)
+    case 6
+      settingsSet("P6", 0, devcommPriceList)
+    case 7
+      settingsSet("P7", 0, devcommPriceList)
+    case 8
+      settingsSet("P8", 0, devcommPriceList)
+    case 9
+      settingsSet("P9", 0, devcommPriceList)
+    case 10
+      settingsSet("PA", 0, devcommPriceList)
+    case 11
+      settingsSet("PB", 0, devcommPriceList)
+    case 12
+      settingsSet("PC", 0, devcommPriceList)
+    case 13
+      settingsSet("PD", 0, devcommPriceList)
+    case 14
+      settingsSet("PE", 0, devcommPriceList)
+    case 15
+      settingsSet("PF", 0, devcommPriceList)
+  end select
+
+  changeFSMState(UpdatePriceList)
+end sub

@@ -1,0 +1,9 @@
+  1				2		3		4		5
+  FieldName		Type 	Param1	Param2	Defval
+
+>>FIELD1		S		0		0		^
+>>FIELD2		S		0		0		^
+>>FIELD3		S		0		0		^
+>>FIELD4		S		0		0		^
+
+<END>

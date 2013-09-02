@@ -1,0 +1,246 @@
+'*************************************************************
+'			USEFUL STUFF THAT CAN BE RE-USED IN OTHER PROJECTS
+'*************************************************************
+include "../common/common.tbh"
+include "keypad.tbh"
+include "relay.tbh"
+
+'codes returned by scanning lines
+const KP_HWD_BUTTON_LU = 48
+const KP_HWD_BUTTON_LD = 32
+const KP_HWD_BUTTON_RU = 16
+const KP_HWD_BUTTON_RD = 0
+
+'scan lines for keyboard
+const KP_SCAN_LINE1 = 24
+const KP_SCAN_LINE2 = 25
+const KP_SCAN_LINE3 = 26
+const KP_SCAN_LINE4 = 27
+
+'return line for keyboard
+const KP_RET_LINE1  = 28
+
+const LCD_BUTTONS_FILE = "buttons.bmp"
+
+dim keypadRotateState as no_yes
+dim keyLUBlink, keyLDBlink, keyRUBlink, keyRDBlink as boolean = false
+
+dim keypadLUPressed as boolean = false
+dim keypadLDPressed as boolean = false
+dim keypadRUPressed as boolean = false
+dim keypadRDPressed as boolean = false
+
+declare sub blinking
+
+'=============================================================
+public sub keypadInit(rotate as no_yes)
+  keypadRotateState = rotate
+
+  io.num=KP_SCAN_LINE1
+  io.enabled=YES
+
+  io.num=KP_SCAN_LINE2
+  io.enabled=YES
+
+  io.num=KP_SCAN_LINE3
+  io.enabled=YES
+
+  io.num=KP_SCAN_LINE4
+  io.enabled=YES
+
+  kp.enabled = NO
+  kp.scanlinesmapping   = str(KP_SCAN_LINE1)+","+str(KP_SCAN_LINE2)+","+str(KP_SCAN_LINE3)+","+str(KP_SCAN_LINE4)
+  kp.returnlinesmapping = str(KP_RET_LINE1)
+  kp.longpressdelay = 80
+  kp.enabled=YES
+end sub
+
+public sub keypadTimer
+  blinking
+end sub
+
+public function keypadOnKey(key_event as pl_kp_event_codes, key_code as byte) as KeypadKeyEnum
+  dim key as KeypadKeyEnum = keypadKeyDecode(key_code)
+
+  if key_event = PL_KP_EVENT_PRESSED then
+    keypadLEDLit(key, true)
+    select case key
+      case KP_BUTTON_LU:
+	    keypadLUPressed = true
+      case KP_BUTTON_LD:
+	    keypadLDPressed = true
+      case KP_BUTTON_RU:
+	    keypadRUPressed = true
+      case KP_BUTTON_RD:
+	    keypadRDPressed = true
+    end select
+  end if
+
+  if key_event = PL_KP_EVENT_RELEASED then
+    keypadLEDLit(key, false)  
+    select case key
+      case KP_BUTTON_LU:
+	    keypadLUPressed = false
+      case KP_BUTTON_LD:
+	    keypadLDPressed = false
+      case KP_BUTTON_RU:
+	    keypadRUPressed = false
+      case KP_BUTTON_RD:
+	    keypadRDPressed = false
+    end select
+  end if
+
+  if key_event = PL_KP_EVENT_PRESSED then
+    if keypadLDPressed and keypadRUPressed and keypadRDPressed then sys.reboot
+    if keypadLUPressed and keypadLDPressed and keypadRUPressed then relay1SetState(not relay1IsOpen)
+    if keypadLUPressed and keypadLDPressed and keypadRDPressed then relay2SetState(not relay2IsOpen)
+  end if
+
+  keypadOnKey = key
+end function
+
+public function keypadToStr(key as KeypadKeyEnum) as string
+  select case key
+    case KP_BUTTON_LU:
+	  keypadToStr = "LU"
+    case KP_BUTTON_LD:
+	  keypadToStr = "LD"
+    case KP_BUTTON_RU:
+	  keypadToStr = "RU"
+    case KP_BUTTON_RD:
+	  keypadToStr = "RD"
+  end select
+end function
+
+public function keypadKeyDecode(keyCode as byte) as KeypadKeyEnum
+  if keypadRotateState = NO then
+    select case keyCode
+      case KP_HWD_BUTTON_LU:
+	    keypadKeyDecode = KP_BUTTON_LU
+      case KP_HWD_BUTTON_LD:
+	    keypadKeyDecode = KP_BUTTON_LD
+      case KP_HWD_BUTTON_RU:
+	    keypadKeyDecode = KP_BUTTON_RU
+      case KP_HWD_BUTTON_RD:
+	    keypadKeyDecode = KP_BUTTON_RD
+    end select
+  end if
+
+  if keypadRotateState = YES then
+    select case keyCode
+      case KP_HWD_BUTTON_LU:
+	    keypadKeyDecode = KP_BUTTON_RD
+      case KP_HWD_BUTTON_LD:
+	    keypadKeyDecode = KP_BUTTON_RU
+      case KP_HWD_BUTTON_RU:
+	    keypadKeyDecode = KP_BUTTON_LD
+      case KP_HWD_BUTTON_RD:
+	    keypadKeyDecode = KP_BUTTON_LU
+    end select
+  end if
+end function
+
+function enumDecode(key as KeypadKeyEnum) as pl_io_num
+  if keypadRotateState = NO then
+    select case key
+      case KP_BUTTON_LU:
+	    enumDecode = KP_SCAN_LINE4
+      case KP_BUTTON_LD:
+	    enumDecode = KP_SCAN_LINE3
+      case KP_BUTTON_RU:
+	    enumDecode = KP_SCAN_LINE2
+      case KP_BUTTON_RD:
+	    enumDecode = KP_SCAN_LINE1
+    end select
+  end if
+
+  if keypadRotateState = YES then
+    select case key
+      case KP_BUTTON_LU:
+	    enumDecode = KP_SCAN_LINE1
+      case KP_BUTTON_LD:
+	    enumDecode = KP_SCAN_LINE2
+      case KP_BUTTON_RU:
+	    enumDecode = KP_SCAN_LINE3
+      case KP_BUTTON_RD:
+	    enumDecode = KP_SCAN_LINE4
+    end select
+  end if
+end function
+
+
+public sub displayButton(key as KeypadKeyEnum, offset as word)
+'This function prints 4 stored icon images on the LCD, 
+  dim bmp_width as byte = (lcd.width/4)-1	
+  romfile.open(LCD_BUTTONS_FILE)
+  select case key
+    case KP_BUTTON_LU:
+	  lcd.bmp(romfile.offset,0,0,offset,0,17,31)
+	case KP_BUTTON_LD:
+	  lcd.bmp(romfile.offset,0,lcd.height/2+1,offset,0,17,31)
+    case KP_BUTTON_RU:
+      lcd.bmp(romfile.offset,lcd.width-17,0,offset,0,17,31)
+	case KP_BUTTON_RD:
+	  lcd.bmp(romfile.offset,lcd.width-17,lcd.height/2+1,offset,0,17,31)
+  end select
+end sub
+
+public sub displayButtonFrame
+  lcd.line(0, lcd.height/2, 17, lcd.height/2)
+  lcd.line(lcd.width-17, lcd.height/2, lcd.width-1, lcd.height/2)
+
+  lcd.line(18, 0, 18, lcd.height -1)
+  lcd.line(lcd.width-18, 0, lcd.width-18, lcd.height -1)
+end sub
+
+public sub keypadAllLEDReset
+'Turn off the all leds
+  keyLUBlink = false
+  keypadLEDLit(KP_BUTTON_LU, false)
+  keyLDBlink = false
+  keypadLEDLit(KP_BUTTON_LD, false)
+  keyRUBlink = false
+  keypadLEDLit(KP_BUTTON_RU, false)
+  keyRDBlink = false
+  keypadLEDLit(KP_BUTTON_RD, false)
+end sub
+
+public sub keypadLEDLit(key as KeypadKeyEnum, turn as boolean)
+  dim state as low_high
+  if turn then state = LOW else state = HIGH  
+  io.num = enumDecode(key)
+  if io.state <> state then io.state = state
+end sub
+
+public sub keypadLEDBlink(key as KeypadKeyEnum, blinking as boolean)
+  select case key
+    case KP_BUTTON_LU
+	  keyLUBlink = blinking
+      if not blinking then keypadLEDLit(KP_BUTTON_LU, false)
+    case KP_BUTTON_LD:
+	  keyLDBlink = blinking
+      if not blinking then keypadLEDLit(KP_BUTTON_LD, false)
+    case KP_BUTTON_RU:
+	  keyRUBlink = blinking
+      if not blinking then keypadLEDLit(KP_BUTTON_RU, false)
+    case KP_BUTTON_RD:
+	  keyRDBlink = blinking
+      if not blinking then keypadLEDLit(KP_BUTTON_RD, false)
+  end select  
+end sub
+
+sub blinking
+  if sysTimeCounter mod 2 = 0 then
+    if keyLUBlink then keypadLEDLit(KP_BUTTON_LU, true)
+    if keyLDBlink then keypadLEDLit(KP_BUTTON_LD, true)
+    if keyRUBlink then keypadLEDLit(KP_BUTTON_RU, true)
+    if keyRDBlink then keypadLEDLit(KP_BUTTON_RD, true)
+  end if
+  
+  if sysTimeCounter mod 2 = 1 then
+    if keyLUBlink then keypadLEDLit(KP_BUTTON_LU, false)
+    if keyLDBlink then keypadLEDLit(KP_BUTTON_LD, false)
+    if keyRUBlink then keypadLEDLit(KP_BUTTON_RU, false)
+    if keyRDBlink then keypadLEDLit(KP_BUTTON_RD, false)
+  end if
+end sub

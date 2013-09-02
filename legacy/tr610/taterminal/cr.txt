@@ -1,0 +1,9 @@
+  1				2		3		4		5
+  FieldName		Type 	Param1	Param2	Defval
+
+>>id			S		8		8		^
+>>type			B		0		3		^
+>>DATE			D		0		36524	^
+>>TIME			T		0		143959	^
+
+<END>

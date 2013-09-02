@@ -1,0 +1,243 @@
+include "../common/common.tbh"
+include "../common/settings.tbh"
+include "../../lib/tr610/relay.tbh"
+include "bpdriver.tbh"
+
+const USA_SERVER_IP = "65.99.213.252"
+const USA_SERVER_PORT = 8483
+
+type BPDriverRecentMsgType
+  msgId as byte           'message token (to enforce relibility over UDP link)
+  timestamp as long       'when message was sent
+  response as string(255) 'response sent to BP Driver
+end type
+
+dim bpdriverRecentMessage as BPDriverRecentMsgType
+dim bpdriverRecentMsgCurrT as byte = 48
+
+public dim bpdriverSocketNumber as byte
+public dim bpdriverUSASocketNumber as byte
+
+declare sub usaPing
+declare sub processTime(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+declare sub processPing
+declare sub processRelay(r as byte, time as word)
+declare sub pingTargetIP
+
+dim bpdriverTimerCounter   as long = 0
+dim bpdriverServerLastSeen as long = 0
+dim bpdriverPingCounter    as byte = 0
+dim bpdriverTargetIP       as string(16)
+dim bpdriverDeviceType     as string(11)
+dim bpdriverSerialNumber   as string(6)
+dim bpdriverSignature      as string(16)
+dim bpdriverLocalization   as string(21)
+dim bpdriverAssetInfo      as string(64)
+
+public sub bpdriverInit(socketNumber as byte, usa as byte, byref targetIp as string, byref deviceType as string, byref serialNumber as string, byref signature as string, byref localization as string, byref assetInfo as string)
+  bpdriverSocketNumber = socketNumber
+  bpdriverUSASocketNumber = usa
+  bpdriverTargetIP = targetIp
+  bpdriverDeviceType = deviceType
+  bpdriverSerialNumber = serialNumber
+  bpdriverSignature = signature
+  bpdriverLocalization = localization
+  bpdriverAssetInfo = assetInfo
+  
+  sock.num = bpdriverSocketNumber
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+  sock.targetip = targetIP
+  sock.targetport = "2009"
+  sock.connect
+  
+  sock.num = bpdriverUSASocketNumber
+  sock.rxbuffrq(1)
+  sock.txbuffrq(2)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+  sock.targetip = USA_SERVER_IP
+  sock.targetport = USA_SERVER_PORT
+  sock.connect
+end sub
+
+public sub bpdriverTimer
+  if bpdriverTimerCounter mod 360 = 20 then usaPing
+  if bpdriverTimerCounter mod 10 = 2 then pingTargetIP  
+
+  if (bpdriverTimerCounter - bpdriverServerLastSeen) mod 60 = 55 then
+    'beep.play("BBBBBBBBBBBBBBBBB", PL_BEEP_CANINT)
+	'close the socket, deallocate space
+    sock.num = bpdriverSocketNumber
+	sock.inconmode=PL_SOCK_INCONMODE_NONE
+	sock.discard
+	while sock.statesimple<>PL_SSTS_CLOSED
+	wend
+	sock.rxbuffrq(0)
+	sock.txbuffrq(0)
+	sys.buffalloc
+  end if
+
+  if (bpdriverTimerCounter - bpdriverServerLastSeen) mod 60 = 58 then
+    bpdriverInit(bpdriverSocketNumber, bpdriverUSASocketNumber, bpdriverTargetIP, bpdriverDeviceType, bpdriverSerialNumber,
+	  bpdriverSignature, bpdriverLocalization, bpdriverAssetInfo)
+    'beep.play("*B-*B-*B-*B-*B-*B-*B-*B-*B", PL_BEEP_CANINT)
+  end if
+
+'  if (udpserverTimerCounter - udpserverServerLastSeen) = 600*10 then
+'    sys.reboot
+'  end if
+
+  bpdriverTimerCounter = bpdriverTimerCounter + 1
+end sub
+
+public sub bpdriverSend(byref s as string)
+  sock.num = bpdriverSocketNumber
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata(chr(bpdriverRecentMsgCurrT))
+  sock.setdata(s)
+  sock.send
+  if bpdriverRecentMsgCurrT <> 48 then
+    bpdriverRecentMessage.msgId = bpdriverRecentMsgCurrT
+	bpdriverRecentMessage.timestamp = bpdriverTimerCounter
+    bpdriverRecentMessage.response = s
+  end if
+end sub
+
+sub usaSend(byref s as string)
+  sock.num = bpdriverUSASocketNumber
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata(s)
+  sock.send
+  bpdriverPingCounter = bpdriverPingCounter + 1
+end sub
+
+sub usaPing
+  dim s as string = "DEVPING" + chr(TAB)
+  s = s + bpdriverDeviceType + chr(TAB)
+  s = s + bpdriverSerialNumber + chr(TAB)
+  s = s + net.ip + chr(TAB)
+  
+  s = s + bpdriverSignature + " @ " + bpdriverLocalization
+  dim dd, mm as word
+  dim ss as byte
+  rtc.getdata(dd, mm, ss)
+  s = s + " / [" + str(year(dd)) + "-" + str(month(dd)) + "-" + str(date(dd)) + " " + str(hours(mm)) + ":" + str(minutes(mm)) + ":" + str(ss) + "]"
+  if bpdriverAssetInfo <> "" then s = s + " / " + bpdriverAssetInfo
+  s = s + chr(TAB)
+  usaSend(s)
+end sub
+
+public sub bpdriverReadUSA
+  'if bpdriverPingCounter mod 10 <> 1 then exit sub
+  dim datagram as string = sock.getdata(255)
+  
+  dim s as string = token(datagram, 0, TAB)
+
+  if s <> "DEVPING" then exit sub
+  s = token(datagram, 1, TAB)
+  processTime(val(mid(s,1,2)), val(mid(s,3,2)), val(mid(s,5,2)), val(mid(s,8,2)), val(mid(s,10,2)), val(mid(s,12,2)))
+end sub
+
+sub pingTargetIP
+  bpdriverRecentMsgCurrT = 48
+  bpdriverSend("P" + chr(TAB) + bpdriverDeviceType + chr(TAB) + bpdriverSerialNumber + chr(TAB) + bpdriverSignature + chr(TAB))
+end sub
+
+public sub bpdriverSendCardDetected(sn as string)
+  bpdriverRecentMsgCurrT = 48
+  bpdriverSend("S" + chr(TAB) + sn + chr(TAB))
+end sub
+
+public sub bpdriverSendBarCode(bc as string)
+  bpdriverRecentMsgCurrT = 48
+  bpdriverSend("B" + chr(TAB) + bc + chr(TAB))
+end sub
+
+public sub bpdriverSendKey(key as string)
+  bpdriverRecentMsgCurrT = 48
+  bpdriverSend("K" + chr(TAB) + key + chr(TAB))
+end sub
+
+public sub bpdriverReadDatagram
+  bpdriverRecentMsgCurrT = asc(sock.getdata(1))
+  if bpdriverRecentMsgCurrT <> 48 then
+    if (bpdriverRecentMessage.msgId = bpdriverRecentMsgCurrT) and
+       (bpdriverTimerCounter - bpdriverRecentMessage.timestamp < 10) then
+	  bpdriverSend(bpdriverRecentMessage.response)
+	  exit sub
+	end if
+  end if
+  
+  dim datagram as string = sock.getdata(255)
+  
+  dim command as string = token(datagram, 0, TAB)
+
+  if command = "T" then
+    processTime(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), val(token(datagram, 3, TAB)), val(token(datagram, 4, TAB)), val(token(datagram, 5, TAB)), val(token(datagram, 6, TAB)))
+	exit sub
+  end if
+
+  if command = "P" then
+    processPing
+	exit sub
+  end if
+
+  if command = "R" then
+    processRelay(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)))
+	exit sub
+  end if
+
+  if command = "LOCK" then
+    lockDevice
+	bpdriverSend("LOCK")
+  end if
+
+  if command = "UNLOCK" then
+    unlockDevice
+	bpdriverSend("UNLOCK")
+  end if
+
+  if command = "REBOOT" then
+    sys.reboot
+	exit sub
+  end if
+  
+  if command = "DB" then
+    on_BPDriver_Database(datagram)
+    exit sub
+  end if
+  
+  on_BPDriver_Datagram(datagram)
+end sub
+
+'PRIVATE ================================================================================================
+
+sub processPing
+  bpdriverServerLastSeen = bpdriverTimerCounter
+end sub
+
+sub processTime(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+  rtc.setdata(daycount(y, mm, d), mincount(h, m), s)
+end sub
+
+sub processRelay(r as byte, time as word)
+  select case r
+    case 1
+      relay1Open(time)
+    case 2
+      relay2Open(time)
+  end select
+end sub

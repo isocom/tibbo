@@ -1,0 +1,38 @@
+include "db.tbh"
+include "dbCards.tbh"
+include "../common/common.tbh"
+
+const RECORD_SIZE = 32
+const TERMINATOR = 0
+
+public sub dbCardsInit
+  dbInitTable("Cards", RECORD_SIZE, 1000)
+end sub
+
+public function dbCardsRead as CardRecord
+  dim tmp as string = dbCurrentRecord  
+  dbCardsRead.serialNumber = commonStringTrim(tmp, TERMINATOR)
+  dbCardsRead.cardType = mid(tmp, 15, 2)
+  dbCardsRead.humanRef = commonWordFromBES(mid(tmp, 17, 2))
+  dbCardsRead.reserved = "12345678901234"
+end function
+
+public sub dbCardsAdd(card as CardRecord)
+  dbUse("Cards")
+  dim r as string(RECORD_SIZE) = card.serialNumber
+  commonStringEnlarge(r, 14, TERMINATOR)
+  r = r + card.cardType
+  r = r + commonWordToBES(card.humanRef)
+  r = r + "12345678901234"
+  dbAdd(r)
+end sub
+
+public function dbCardsFindBySerialNumber(sn as string) as word
+  dbUse("Cards")
+  if dbFind(sn) then
+    dbCardsFindBySerialNumber = dbCurrentPos
+  else
+    dbCardsFindBySerialNumber = 0
+  end if
+end function
+

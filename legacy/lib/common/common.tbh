@@ -1,0 +1,33 @@
+'=============================================================
+'	COMMON.TBS
+'=============================================================
+
+const TAB=9
+
+'System Wide 1/10 second counter, staring from 0 on powerUP
+'Please increment it in on_sys_timer
+declare sysTimeCounter as long 
+
+declare sub lockDevice
+declare sub unlockDevice
+declare function isDeviceLocked as boolean
+
+declare function commonBool2Str(b as boolean) as string
+declare function commonBool2Str1(b as boolean) as string
+
+declare function token(s as string, n as byte, d as char) as string
+declare function reverse2(s as string) as string
+declare function msbToLong(s as string) as long
+
+declare function commonStringTrim(byref s as string, terminator as byte) as string
+declare sub commonStringEnlarge(byref s as string, l as byte, c as char)
+declare sub commonReplaceChr(byref s as string, a as string, b as string)
+declare sub commonSleep(time as byte, allowEvents as boolean)
+declare sub commonSleepNoEvents(time as byte)
+
+declare function commonWordHi(w as word) as byte
+declare function commonWordLo(w as word) as byte
+declare function commonWordFromBES(byref s as string) as word
+declare function commonWordFromLES(byref s as string) as word
+declare function commonWordToBES(w as word) as string(2)
+declare function commonWordToLES(w as word) as string(2)

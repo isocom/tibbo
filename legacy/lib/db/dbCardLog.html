@@ -1,0 +1,30 @@
+<?
+include "db.tbh"
+include "dbCardLog.tbh"
+include "../common/html.tbh"
+include "../common/common.tbh"
+
+lockDevice
+htmlWrite("<?xml version=" +chr(34)+ "1.0" +chr(34)+ " encoding=" +chr(34)+ "UTF-8" +chr(34)+ "?>" +chr(10))
+htmlWrite("<tibboCardLog version=" +chr(34)+ "1" +chr(34)+ ">" + chr(10))
+if dbUse("CardLog") then
+  while dbHasNext
+    htmlWrite("<entry pos=" + chr(34) + str(dbCurrentPos) + chr(34) + ">")
+	dim clr as CardLogRecord = dbCardLogRead
+	htmlWrite("<cardRef>" + str(clr.cardRef) + "</cardRef>")
+	dim ts as string(20)
+	ts = "20" + str(year(clr.dayCount)) + "-"
+	ts = ts + str(month(clr.dayCount)) + "-"
+	ts = ts + str(date(clr.dayCount)) + " "
+	ts = ts + str(hours(clr.minCount)) + ":"
+	ts = ts + str(minutes(clr.minCount)) + ":"
+	ts = ts + str(clr.seconds)
+	htmlWrite("<timestamp>" + ts + "</timestamp>")
+	htmlWrite("<status>" + str(clr.status) + "</status>")
+    htmlWrite("</entry>" + chr(10))
+	if dbCurrentPos mod 10 = 9 then doevents
+  wend
+end if
+htmlWrite("</tibboCardLog>")
+unlockDevice
+?>

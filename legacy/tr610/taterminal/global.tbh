@@ -1,0 +1,38 @@
+
+
+'This file is for global definitions (that is, if you gonna have any)
+include "settings.tbh"
+include "tables.tbh"
+include "html_common.tbh"
+include "html_session.tbh"
+include "html_settings.tbh"
+include "device.tbh"
+include "aggregate.tbh"
+include "reader.tbh"
+include "html_tables.tbh"
+include "msg.tbh"
+include "dhcp.tbh"
+include "keypad.tbh"
+include "lcd_common.tbh"
+include "ui_list_box.tbh"
+include "ui_input_box.tbh"
+include "ui_msg_box.tbh"
+include "ui_tbl_box.tbh"
+include "ui_menu.tbh"
+include "ui_clock.tbh"
+include "time.tbh"
+include "flags.tbh"
+include "boot.tbh"
+include "sntp.tbh"
+include "net_cmd.tbh"
+include "error_chk.tbh"
+include "cap_lcd.tbh"
+
+'ASCII for special characters
+const TAB=9
+const LF=10
+const CR=13
+const STX=2
+const ETX=3
+const NULL=0
+const COMMA = 44

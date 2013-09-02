@@ -1,0 +1,127 @@
+include "global.tbh"
+
+'=============================================================
+public function error_ip_chker (byref str_val as string) as boolean
+'Check if the ip is valid
+	dim s as string(4)
+	dim isVaild as boolean
+	isVaild = true
+	s = ddval(str_val)
+	if asc(left(s,1)) > 223 then
+		s = right(s,3)
+		s = chr(223) + s
+		isVaild = false
+	end if
+	if asc(right(s,1)) = 255 then
+		s = left(s,3)
+		s  = s +chr(1)
+		isVaild = false
+	end if 
+	if asc(right(s,1)) = 0 then
+		s = left(s,3)
+		s = s+chr(1)
+		isVaild = false
+	end if
+	if asc(left(s,1)) = 0 then
+		s = right(s,3)
+		s = chr(1)+ s
+		isVaild = false
+	end if
+	str_val = ddstr(s)
+	error_ip_chker = isVaild
+end function
+
+'=============================================================
+public function error_time_chker(sYear as string(4), sMonth as string(2), sDate as string(2), sHour as string(2), sMin as string(2), sSec as string(2)) as boolean
+	dim i, b, bSysSec,bYear,bMonth,bDate,bHour,bMin as byte
+	dim wSysDaycount, wSysMincount as word
+	dim s as string
+	'check if any character is not a number
+	s = sYear+sMonth+sDate+sHour+sMin+sSec
+	for i = 1 to len(s)
+		b = asc(mid(s,i,1))
+		if b < &h30 or b > &h39 then 
+			error_time_chker = false
+			exit function
+		end if
+	next i
+	if len(sYear) = 0 then sYear = "2000"
+	if len(sMonth) = 0 then sMonth = "01"
+	if len(sDate) = 0 then sDate = "01"
+	if len(sHour) = 0 then sHour = "00"
+	if len(sMin) = 0 then sMin = "00"
+	if len(sSec) = 0 then sSec = "00"
+
+	if val(sHour) > 23 or val(sMin) > 59 or val(sYear) < 2000 or val(sYear) > 2099 then
+		error_time_chker = false
+		exit function
+	end if
+
+	bYear = val(sYear)-2000
+	bMonth = val(sMonth)
+	bDate = val(sDate)
+	wSysDaycount = daycount(bYear,bMonth,bDate)	
+	bHour = val(sHour)
+	bMin = val(sMin)
+	wSysmincount = mincount(bHour,bMin)
+	bSysSec = val(sSec)
+	if wSysDaycount = 65535 or wSysmincount = 65535 or bSysSec > 59 then 
+		error_time_chker = false
+		exit function
+	end if
+	error_time_chker = true
+end function
+
+'=============================================================
+public function error_settings_chker as boolean
+	dim i as byte
+	dim setting_name as string(MAX_SETTING_NAME_LEN)
+	dim ss as en_stg_status
+	for i = 0 to MAX_NUM_SETTINGS-1
+		setting_name = sdr(i).name
+		if len(setting_name) <> 0 then ss = setting_sg(setting_name,0,"",EN_STG_GET)
+		if ss <> EN_STG_STATUS_OK then
+			error_settings_chker = false
+			exit function
+		end if
+	next i 
+	error_settings_chker = true
+end function
+
+'=============================================================
+public function error_fd_chker as boolean
+	dim freespace as word
+	if fd.format(fd.availableflashspace, 16) = PL_FD_STATUS_OK then
+		if fd.mount = PL_FD_STATUS_OK then
+			freespace = fd.getfreespace
+			if freespace <> fd.capacity then
+				fd.format(fd.availableflashspace, 16)
+				goto error
+			else
+				fd.format(fd.availableflashspace, 16)
+				error_fd_chker = true	
+				exit function
+			end if
+		else
+			goto error
+		end if
+	else
+		goto error
+	end if
+error:
+	error_fd_chker = false
+end function
+
+'=============================================================
+public function error_rtc_chker as boolean
+	dim wDaycount, wMincount as word
+	dim bSec as byte
+	rtc.setdata(1,1,1)
+	rtc.getdata(wDaycount, wMincount, bSec)
+	if wDaycount <> 1 or wMincount <> 1 and bSec < 1 then goto error
+	if rtc.running = NO then goto error
+	error_rtc_chker = true
+	exit function
+error:
+	error_rtc_chker = false
+end function

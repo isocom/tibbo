@@ -1,0 +1,7 @@
+const READER_PORT_NUM = 1
+const MAX_RFID_SN_LEN = 14
+
+declare readerLastCardSN as string(MAX_RFID_SN_LEN) 'Ostatnio odczytany transponder
+declare sub readerInit
+declare sub readerProcess
+declare function readerIsNewCardSNDetected as boolean

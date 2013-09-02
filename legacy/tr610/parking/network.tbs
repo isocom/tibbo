@@ -1,0 +1,9 @@
+include "../../lib/common/common.tbh"
+
+public sub on_BPDriver_Datagram(byref datagram as string)
+  dim command as string = token(datagram, 0, TAB)
+  if command = "TA" then
+    'dbCards_SerialNumber = token(datagram, 1, TAB)
+    'dbCardsSave
+  end if
+end sub

@@ -1,0 +1,12 @@
+Setting	Setting							Setting 
+Name	String							Data
+
+>>ON	Owner Name						S,I,8	^
+>>DN	Device Name 					S,I,8	^
+>>DH	DHCP							B,L,0-Disabled;1-Enabled;	^
+>>IP	IP-address 						S,I,15	^
+>>GI	Gateway IP-address 				S,I,15	^
+>>NM	Netmask							S,I,15	^
+>>RC	On-the-fly Commands 			B,L,0-Disabled;1-Enabled;	^
+>>OP	On-the-fly Password 			B,L,0-Disabled;1-Enabled;	^
+>>PC	Serial Port Configuration		B,L,0-Option 0;1-Option 1;2-Option 2;3-Option 3;4-Option 4;5-Option 5;6-Option 6;7-Option 7;8-Option 8;9-Option 9;10-Option 10;11-Option 11;12-Option 12;13-Option 13;14-Option 14;	^

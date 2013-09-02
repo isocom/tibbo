@@ -1,0 +1,68 @@
+include "global.tbh"
+
+const DEL = 124 ' ascii for |
+
+function token(s as string, n as byte, d as char) as string
+  dim f as byte
+  if n = 0 then f = 0 else f = instr(1, s, chr(d), n)
+
+  dim t as byte = instr(1, s, chr(d), n+1)
+  if t = 0 then t = len(s)
+
+  token = mid(s, f+1, t-f-1)
+end function
+
+dim cmd_rtc_counter as byte = 0
+sub cmd_process_heart_beat1(byref cmd as string)
+  device_watch_dog_reset1
+  
+  cmd_rtc_counter = cmd_rtc_counter + 1
+  if cmd_rtc_counter <> 1 then exit sub
+  dim s as string = token(cmd, 1, DEL)
+  rtc.setdata(
+    daycount(val(mid(s,1,2)), val(mid(s,3,2)), val(mid(s,5,2))),
+	mincount(val(mid(s,8,2)), val(mid(s,10,2))),
+	val(mid(s,12,2)))
+  beep.play("BBB-BB-B", PL_BEEP_CANINT)
+end sub
+
+sub cmd_process_hello1(byref cmd as string)
+  dim id as string = token(cmd, 1, DEL)
+  device_markInit4pass(id)
+end sub
+
+sub cmd_process_display1(byref cmd as string)
+  dim l1 as string = token(cmd, 1, DEL)
+  displayMessage(l1+"`")
+end sub
+
+sub cmd_process_display2(byref cmd as string)
+  dim l1 as string = token(cmd, 1, DEL)
+  dim l2 as string = token(cmd, 2, DEL)
+  displayMessage(l1+"`"+l2)
+end sub
+
+sub cmd_process_display3(byref cmd as string)
+  dim l1 as string = token(cmd, 1, DEL)
+  dim l2 as string = token(cmd, 2, DEL)
+  dim l3 as string = token(cmd, 3, DEL)
+  displayMessage(l1+"`"+l2+"`"+l3)
+end sub
+
+sub cmd_process_display4(byref cmd as string)
+  dim l1 as string = token(cmd, 1, DEL)
+  dim l2 as string = token(cmd, 2, DEL)
+  dim l3 as string = token(cmd, 3, DEL)
+  dim l4 as string = token(cmd, 4, DEL)
+  displayMessage(l1+"`"+l2+"`"+l3+"`"+l4)
+end sub
+
+sub cmd_process(byref cmd as string)
+  dim command as string = token(cmd, 0, DEL)
+  if command = "Hello1" then cmd_process_hello1(cmd)
+  if command = "HeartBeat1" then cmd_process_heart_beat1(cmd)
+  if command = "Display1" then cmd_process_display1(cmd)
+  if command = "Display2" then cmd_process_display2(cmd)
+  if command = "Display3" then cmd_process_display3(cmd)
+  if command = "Display4" then cmd_process_display4(cmd)
+end sub

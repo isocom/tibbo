@@ -1,0 +1,1139 @@
+'***********************************************************************************************************
+'			DEVICE SPECIFIC FUNCTIONS
+'***********************************************************************************************************
+
+include "global.tbh"
+
+public dim login_mode as cmd_modes
+public dim login_data as string(32)
+public dim login_tout as word
+public dim login_sock as byte
+public dim html_reboot_flag as no_yes
+public dim index_page_socknum as byte 
+public dim on_kp_event_dest as on_kp_event_destinations
+public dim on_sys_timer_event_dest as on_sys_timer_event_destinations
+public dim on_reader_event_dest as on_reader_event_destinations
+public dim current_event as event_type
+public dim device_tbl_result as en_tbl_status
+public dim param_on,param_dn as string(16)
+public dim sync_success as no_yes
+public dim sync_retry as byte
+
+declare print_bar as no_yes
+declare lcd_rotate as byte
+
+dim dhcp_lease_time as dword 'this is a counter-down for remaining lease time
+dim auto_sync_flag as no_yes
+dim relay_counter1,relay_counter2 as byte
+
+
+'=============================================================
+public sub device_pause(sec as word)
+'Descr: pause the device for number of sec
+	dim t as word
+	t = sys.timercount
+	while sys.timercount < t+sec*2
+		if sys.timercount < t then t = sys.timercount 
+	wend
+end sub
+'=============================================================
+function device_settings_initialize() as en_stg_status
+'initialize device, set the setting modify time to 2000,01,01
+	dim result as en_stg_status
+	
+	lcd_print_msg(COMMAND_INITIALING,24,15,80,37,yes)
+	device_pause(2)
+	
+	stg_timestamp.ts_daycount = 0
+	stg_timestamp.ts_mincount = 0
+	stg_timestamp.ts_seconds = 0
+	stg_timestamp.ts_milsec = 0
+	
+	result = settings_restore_def(NO)
+	if result = EN_STG_STATUS_OK then
+		lcd_print_msg(INITIALIZATION_SUCCESS,10,5,108,47,yes)			
+		device_pause(3)
+		lcd_clear(0,0,lcd.width,lcd.height)
+	else
+		lcd_print_msg(INITIALIZATION_FAIL,24,15,80,37,yes)
+	end if
+	device_settings_initialize = result
+	index_page_socknum=255
+end function
+
+
+'=============================================================
+public sub device_modtime_sg(byref date_time as string(23), byref field_name as string, op as en_device_rdwr)
+'set or get the modification time of settings or tables 
+	dim syear as string(4)
+	dim smonth,sdate,shour,smin,ssec as string(2)
+	dim smilsec as string(3)
+	dim tbl_modtime, setting_modtime as string(23)
+	dim modetime as struct_tbl_timestamp
+	dim pos, i as byte
+	
+	if op = DEVICE_GET then
+'Get the Modification Time
+		if setting_sg(field_name,0,"",EN_STG_GET) = EN_STG_STATUS_OK then
+			CovertTimeType(setting_modtime,stg_timestamp.ts_daycount, stg_timestamp.ts_mincount,stg_timestamp.ts_seconds,TIME_TO_STR)
+			date_time = setting_modtime
+			TimeFormatStyle(date_time,0,op)
+			smilsec = str(stg_timestamp.ts_milsec)
+			i = 3-len(smilsec)
+			if i > 0 then smilsec = strgen(i,"0")+smilsec
+			date_time = date_time+ "."+ smilsec
+		else
+			if tbl_select(field_name) = EN_TBL_STATUS_OK then
+				tbl_timestamp_sg(modetime,EN_TBL_GET)
+				CovertTimeType(tbl_modtime,modetime.ts_daycount,modetime.ts_mincount,modetime.ts_seconds,TIME_TO_STR)
+				date_time = tbl_modtime
+				TimeFormatStyle(date_time,0,op)
+				smilsec = str(modetime.ts_milsec)
+				i = 3-len(smilsec)
+				if i > 0 then smilsec = strgen(i,"0")+smilsec
+				date_time = date_time + "."+ smilsec
+			end if
+		end if
+		
+	else
+'Set Modification Time
+		pos = instr(1,date_time,".",1)
+		pos = len(date_time)-pos
+		if setting_find(field_name)> 0 then
+			if date_time = "" then 
+				rtc.getdata(stg_timestamp.ts_daycount,stg_timestamp.ts_mincount,stg_timestamp.ts_seconds)
+				stg_timestamp.ts_milsec = 999
+				setting_set_ts(field_name)
+			else
+				device_replace_chr(date_time,":","")
+				device_replace_chr(date_time," ","")
+				device_replace_chr(date_time,"-","")
+				CovertTimeType(left(date_time,14),stg_timestamp.ts_daycount,stg_timestamp.ts_mincount,stg_timestamp.ts_seconds,STR_TO_TIME)
+				stg_timestamp.ts_milsec = val(right(date_time,pos))
+				setting_set_ts(field_name)
+			end if
+		else
+			if tbl_select(field_name) = EN_TBL_STATUS_OK then
+				if date_time = "" then
+					rtc.getdata(modetime.ts_daycount,modetime.ts_mincount,modetime.ts_seconds)
+					modetime.ts_milsec = 0
+				else
+					device_replace_chr(date_time,":","")
+					device_replace_chr(date_time," ","")
+					device_replace_chr(date_time,"-","")
+					CovertTimeType(left(date_time,14),modetime.ts_daycount,modetime.ts_mincount,modetime.ts_seconds,STR_TO_TIME)
+					modetime.ts_milsec = val(right(date_time,pos))
+				end if
+				
+				tbl_timestamp_sg(modetime,EN_TBL_SET)
+			end if
+		end if
+	end if
+end sub
+
+'=============================================================
+public sub date_time_str(byref date_str as string(14), byref hr_str as string(2),byref min_str as string(2), byref sec_str as string(2),byref wday_str as string(3), TZ_time as no_yes)
+'Read from the rtc of the system, and convert the raw rtc value into strings of date, hour, minute and second.
+	dim wSysDaycount, wSysMincount as word
+	dim bSysSec as byte
+	dim wd as pl_days_of_week
+	dim sTime as string(19)
+	if TZ_time = YES then
+		rtc.getdata(wSysDaycount, wSysMincount,bSysSec)
+	else
+		GetRealTime(wSysDaycount, wSysMincount,bSysSec)
+	end if
+	
+	CovertTimeType(sTime,wSysDaycount,wSysMincount,bSysSec,TIME_TO_STR)	
+	date_str=left(sTime,4)+"/"+mid(sTime,5,2)+"/"+mid(sTime,7,2)
+	hr_str = mid(sTime,9,2)
+	min_str = mid(sTime,11,2)
+	sec_str = mid(sTime,13,2)
+	
+	wd = weekday(wSysdaycount)
+		select case wd
+		case PL_DOW_MONDAY:
+			wday_str = "MON"
+		case PL_DOW_TUESDAY:
+			wday_str = "TUE"
+		case PL_DOW_WEDNESDAY:
+			wday_str = "WED"
+		case PL_DOW_THURSDAY:
+			wday_str = "THU"
+		case PL_DOW_FRIDAY:
+			wday_str = "FRI"
+		case PL_DOW_SATURDAY:
+			wday_str = "SAT"
+		case PL_DOW_SUNDAY:
+			wday_str = "SUN"
+	end select
+end sub
+
+'=============================================================
+public sub set_net_ip
+'Correctly sets new IP for use (from the IP setting)
+	dim s as string(16)
+	dim x,f as byte
+
+	s=setting_get("IP",0)
+	s=ddval(s)
+	
+	'first number can't be 0 or >223
+	x=asc(left(s,1))
+	if x=0 or x>223 then
+		s=right(s,3)
+		s=chr(1)+s
+	end if
+	
+	'last number can't be 0 or 255
+	x=asc(right(s,1))
+	if x=0 or x=255 then
+		s=left(s,3)+chr(1)
+	end if
+	
+	'shut all sockets!
+	sock.inconenabledmaster=NO 
+	for f=0 to sock.numofsock-1
+		sock.num=f
+		sock.discard
+		while sock.statesimple<>PL_SSTS_CLOSED
+		wend
+	next f
+	
+	'change the IP
+	net.ip=ddstr(s)
+	sock.inconenabledmaster=YES 
+end sub
+
+'=============================================================
+public sub device_init()
+	on_kp_event_dest=ON_KP_EVENT_DEST_NONE
+	on_sys_timer_event_dest=ON_SYS_TIMER_EVENT_DEST_NONE
+	html_reboot_flag = NO
+end sub
+
+'=============================================================
+sub setting_error_detected
+	'********** ADDITIONAL CODE MAY BE NEEDED **********
+end sub
+
+'=============================================================
+public function login(new_login as cmd_modes, cmd_data as string(32), sock as byte) as ok_ng
+'looks at the current login attempt, checks it against current situation, makes decision to allow/reject
+	if new_login>login_mode then goto l1 'new login attempt has higher priority -- accept it unconditionally
+	if new_login=login_mode then
+		'same level -- we only accept relogin from the same source
+		if login_data=cmd_data then
+l1:			'restart timeout timer
+			login_mode=new_login
+			reset_login_timeout
+			login_data=cmd_data
+			login_sock=sock
+			login=OK
+			device_login_event(login_mode)
+			exit function
+		end if
+	end if
+	'here when new login attempt can't be accepted
+	login=NG
+end function
+
+
+'=============================================================
+public sub reset_login_timeout
+	select case login_mode
+	case CMD_MODE_HTTP:
+		login_tout=LOGIN_TIMEOUT
+	case CMD_MODE_TERMINAL:
+		login_tout = LCD_MENU_TOUT
+	case CMD_MODE_AGGREGATE:
+		login_tout = 0
+	case CMD_MODE_NONE:
+	end select
+end sub
+
+'=============================================================
+public sub device_setting_saved(sname as string(MAX_SETTING_NAME_LEN), index as byte, s as string)
+	dim stemp as string(4)
+	select case sname
+	case "MM":
+		lcd_rotate = val(s)
+		lcd.enabled = NO
+		if s = "0" then
+			lcd.rotated = YES
+		else
+			lcd.rotated = NO
+		end if
+		lcd.enabled = YES
+		key_rotate(lcd_rotate)
+		ui_clock_force_print = YES
+		select case current_event
+		case EVENT_TEMPOUT:
+			sTemp ="0001"
+			key_led_pressed(keycodeF4)
+		case EVENT_TEMPIN:
+			sTemp="0010"
+			key_led_pressed(keycodeF3)
+		case EVENT_OUT:
+			sTemp="0100"
+			key_led_pressed(keycodeF2)
+		case EVENT_IN:
+			sTemp="1000"
+			key_led_pressed(keycodeF1)
+		end select
+		lcd_clear(0,0,lcd.width,lcd.height)
+		lcd_display_button(BMP_IN_XOFFSET,BMP_OUT_XOFFSET,BMP_TIN_XOFFSET,BMP_TOUT_XOFFSET,sTemp,yes,no)
+		device_login_event(login_mode)
+		print_bar = YES
+	end select
+end sub
+
+'=============================================================
+public function device_setting_check(byref setting_name as string,byref setting_val as string) as ok_ng
+	'********** ADDITIONAL CODE MAY BE NEEDED **********
+	device_setting_check = OK
+end function 
+
+'=============================================================
+public function compare_logins(new_login as cmd_modes, cmd_data as string(32), sock as byte) as login_comparison_codes
+'compares "proposed" new_login attempt against current, reports things
+'does not perform actual login
+
+	if login_mode=CMD_MODE_NONE then
+		compare_logins=LC_WILL_ACCEPT
+	else
+		if login_mode>new_login then 
+			compare_logins=LC_WILL_REJECT_HIGHER_IN_PROGRESS
+			exit function
+		end if
+
+		if login_mode<new_login then
+			compare_logins=LC_WILL_ACCEPT_LOWER_IN_PROGRESS
+			exit function
+		end if
+		
+		'here where same priority level session is already in progress
+		if login_data=cmd_data then
+			compare_logins=LC_WILL_ACCEPT_REPEATED_LOGIN
+		else
+			compare_logins=LC_WILL_REJECT_SAME_IN_PROGRESS
+		end if
+	end if
+end function
+
+'=============================================================
+public sub device_html_proc_cmd
+	dim s as string
+	dim sSessionID as string(SESSION_LEN)
+
+	s = get_http_argument(sock.httprqstring,"opt=")
+	sSessionID = get_http_argument(sock.httprqstring,"session=")
+	Select case s
+		case "login":
+			if login(CMD_MODE_HTTP,sSessionID,0)<>OK then
+				html_login_message=HLM_PRIORITY_REJECTED
+				logout()
+				sock_setsend("onload = IndexPage()")
+			end if
+		case "synctime":
+			if sync_success = YES then exit sub
+			sock.close
+			if sync_retry > 0 then 
+				s = device_operation("K")
+				if s <> "A" then 
+					sync_success = NO	
+					sync_retry = sync_retry - 1
+					if sync_retry = 0 then sync_success = NO
+				else
+					sync_success = YES
+					sync_retry = sync_retry - 1
+				end if
+			end if
+			ui_clock_force_print = YES
+			lcd_clear(24,15,80,37)	
+		case "logout":
+			sock_setsend("onload = IndexPage()")
+			html_login_message = HLM_LOGGED_OUT
+			logout()
+		case "init":
+			index_page_socknum = 255
+			device_settings_initialize
+			html_reboot_flag = YES
+			sock_setsend("onload = IndexPage()")		
+		case "reboot":
+			index_page_socknum = 255
+			html_reboot_flag = YES
+			sock_setsend("onload = IndexPage()")
+		case "format":
+			index_page_socknum = 255
+			fd.format(fd.availableflashspace, 16)
+			html_reboot_flag = YES
+			sock_setsend("onload = IndexPage()")			
+	end select
+end sub
+
+'=============================================================
+public sub logout()
+	login_tout=0
+	login_mode=CMD_MODE_NONE
+	login_data=""
+	device_login_event(CMD_MODE_NONE)
+end sub
+
+'=============================================================
+public function device_operation(s as string(1)) as string(1)
+	dim result as en_stg_status
+	dim ts_result as sntp_states
+	dim temp as string
+	dim tbl_result as en_tbl_status
+	select case s
+	case "I":
+		result = device_settings_initialize
+		if result = EN_STG_STATUS_OK then
+			sys.reboot
+		else
+			lcd_print_msg(MSG_HTML_TBL_INTERNAL_ERROR,1,1,lcd.width,lcd.height,yes)
+			device_pause(2)
+			sys.reboot
+		end if
+	case "E":
+		sys.reboot
+	case "M":
+		if fd.format(fd.availableflashspace, 16) = PL_FD_STATUS_OK then
+			goto reply_ok
+		else
+			lcd_print_msg(MSG_HTML_TBL_INTERNAL_ERROR,1,1,lcd.width,lcd.height,yes)
+			device_pause(2)
+			ui_clock_force_print = YES
+			goto reply_failed		
+		end if
+	case "K":
+		if setting_get("AR",0) = "1" then 
+			ts_result = SNTP_CONNECT_FAIL
+			if setting_get("TF",0) = "1" then setting_sg("TF",0,"0",EN_STG_SET)
+			goto error
+		end if
+		if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(SNTP_TS_CONNECTING,24,15,80,37,yes)
+		select case setting_sg("TS",0,temp,EN_STG_GET)
+		case EN_STG_STATUS_OK:
+			dim wDaycount, wMincount as word
+			dim bSec, prev_sock as byte
+			setting_sg("TZ",0,TimeZoneOffSet,EN_STG_GET)
+			prev_sock = sock.num
+			sock.num = SOCK_SNTP
+			device_alloc_memory(SOCK_UDP,SOCK_SNTP)
+			ts_result = ConnectToTimeServer(temp,"",wDaycount, wMincount,bSec)
+			device_alloc_memory(SOCK_SNTP,SOCK_UDP)
+			if ts_result = SNTP_TIME_SYNC_OK then SetRealTime(wDaycount, wMincount,bSec)
+			sock.num = prev_sock
+error:
+			select case ts_result
+				case SNTP_ERROR_FORMAT
+					if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(SNTP_TS_ERROR_FORMAT,24,15,80,37,yes) 
+					device_pause(2)
+					goto reply_err
+				case SNTP_REPLY_TIMEOUT
+					if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(SNTP_TS_REPLY_TIMEOUT,24,15,80,37,yes)
+					device_pause(2)
+					goto reply_rejected
+				case SNTP_CONNECT_FAIL
+					if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(SNTP_TS_CONNECT_FAIL,24,15,80,37,yes)
+					device_pause(2)
+					goto reply_denied
+				case SNTP_TIME_SYNC_OK
+					if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(SNTP_TS_TIME_SYNC_OK,24,15,80,37,yes)
+					device_pause(2)
+					goto reply_ok
+			end select
+			ui_clock_force_print = YES
+		case EN_STG_STATUS_UNKNOWN:
+			goto reply_err
+		case else:
+			goto reply_failed
+		end select
+	case "J","D":
+		if s = "J" then tbl_select(EVENT_TBL)
+		if s = "D" then tbl_select("TBL_WL")
+		if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_NONE then lcd_print_msg(COMMAND_CLEARING_LOG,24,15,80,37,yes)
+		
+		tbl_result = tbl_delete()
+		device_pause(2)
+		lcd_clear(24,15,80,37)
+		if tbl_result = EN_TBL_STATUS_OK then
+			print_bar = YES
+			ui_clock_force_print = YES
+			goto reply_ok
+		else
+			lcd_print_msg(SYS_ERROR_REBOOT,24,15,80,37,yes)
+			device_pause(2)
+			lcd_clear(24,15,80,37)
+			ui_clock_force_print = YES
+			goto reply_failed
+		end if		
+	case "Z":
+		io.num = RELAY_IO1
+		io.state = LOW
+		io.num = RELAY_IO2
+		io.state = LOW 
+		relay_counter1 = RELAY_TIMER
+		relay_counter2 = RELAY_TIMER
+		goto reply_ok
+	case "B":
+		beep.divider = 20000
+		beep.play("BBBB-",PL_BEEP_CANINT)
+		pat.play(PAT_BLINK_BOTH_IN_TURNS_FAST,PL_PAT_CANINT)
+	end select
+goto reply_null
+
+reply_rejected:
+	device_operation="R"
+	goto finish
+reply_err:
+	device_operation="C"
+	goto finish
+reply_denied:
+	device_operation="D"
+	goto finish
+reply_failed:
+	device_operation="F"
+	goto finish
+reply_ok:
+	device_operation="A"
+	goto finish	
+finish:
+
+reply_null:
+end function
+
+'=============================================================
+public function device_agg_func_result(operation as string(1), op_result as string(1), byref err as no_yes) as string(50)
+	select case operation
+	case "Z": 
+		device_agg_func_result = chr(ELEMENT_START)+"R"+chr(ELEMENT_NAME_VALUE_SEPARATOR)+chr(ELEMENT_START)+SYS_DOOR_OPEN+chr(ELEMENT_END)+chr(ELEMENT_END)
+		err = NO
+	case "J":
+		select case op_result
+		case "A": 
+			device_agg_func_result = chr(ELEMENT_START)+"R"+chr(ELEMENT_NAME_VALUE_SEPARATOR)+chr(ELEMENT_START)+MSG_TBL_TABLE_DELETED+chr(ELEMENT_END)+chr(ELEMENT_END)
+			err = NO
+		case else: 			
+			device_agg_func_result = chr(ELEMENT_START)+MSG_TBL_FAIL_DELETE_TABLE+chr(ELEMENT_END)
+			err = YES
+		end select
+	case "M":
+		select case op_result
+		case "A": 
+			device_agg_func_result = chr(ELEMENT_START)+"R"+chr(ELEMENT_NAME_VALUE_SEPARATOR)+chr(ELEMENT_START)+SYS_INFO_FD_FORMAT+chr(ELEMENT_END)+chr(ELEMENT_END)
+			err = NO
+		case else: 
+			device_agg_func_result =chr(ELEMENT_START)+SYS_ERROR_FD+chr(ELEMENT_END)
+			err = YES
+		end select
+	end select
+end function
+'=============================================================
+public sub device_key_proc(key_event as pl_kp_event_codes, key_code as byte)
+	select case on_kp_event_dest
+	case ON_KP_EVENT_DEST_MENU,ON_KP_EVENT_DEST_LIST_BOX,ON_KP_EVENT_DEST_MSG_BOX:
+		select case key_event
+		case PL_KP_EVENT_PRESSED:
+			beep.divider = 20000
+			beep.play("B-",PL_BEEP_CANINT)
+			key_led_pressed(key_code)	
+		case PL_KP_EVENT_RELEASED:
+			key_led_reset
+		end select
+	case ON_KP_EVENT_DEST_INPUT_BOX
+		select case key_event
+		case PL_KP_EVENT_PRESSED:
+			beep.divider = 20000
+			beep.play("B-",PL_BEEP_CANINT)
+			key_led_pressed(key_code)
+		case PL_KP_EVENT_RELEASED:
+			key_led_reset
+		case PL_KP_EVENT_LONGPRESSED:
+			beep.divider = 20000
+			beep.play("B-",PL_BEEP_CANINT)
+		end select
+	end select
+end sub
+
+'=============================================================
+public function device_command_confirm(s as string) as string
+	select case s 
+	case "I":
+		device_command_confirm = COMMAND_INITIALIZE
+	case "E":
+		device_command_confirm = COMMAND_REBOOT
+	case "K":
+		device_command_confirm = COMMAND_TIME_SYNC
+	case "J":
+		device_command_confirm = COMMAND_CLEAR_LOG
+	case "D":
+		device_command_confirm = COMMAND_CLEAR_LOG
+	end select
+end function
+
+
+'=============================================================
+public sub device_alloc_memory(disalloc as sockets, alloc as sockets)
+	dim i,x as byte 
+	'------------- disalloc -------------------
+	select case disalloc
+	case SOCK_HTTP:
+		for i = 0 to NUM_HTTP_SOCKETS-1
+			sock.inconmode=PL_SOCK_INCONMODE_NONE
+			sock.discard
+			while sock.statesimple<>PL_SSTS_CLOSED				
+			wend
+			sock.num = SOCK_HTTP+i
+			sock.txbuffrq(0)
+			sock.rxbuffrq(0)
+			sock.varbuffrq(0)
+		next i
+		sys.buffalloc
+	case SOCK_DHCP,SOCK_HTTP,SOCK_SNTP,SOCK_UDP,SOCK_LS:
+		sock.num = disalloc
+		sock.inconmode=PL_SOCK_INCONMODE_NONE
+		sock.discard
+		while sock.statesimple<>PL_SSTS_CLOSED
+		wend
+		sock.rxbuffrq(0)
+		sock.txbuffrq(0)
+		sys.buffalloc
+	end select
+	'----------------- alloc -------------------
+	select case alloc
+	case SOCK_HTTP:
+		for i = 0 to NUM_HTTP_SOCKETS-1
+			sock.num = SOCK_HTTP+i
+			sock.inconmode=PL_SOCK_INCONMODE_NONE
+			sock.discard
+			while sock.statesimple<>PL_SSTS_CLOSED				
+			wend	
+			sock.txbuffrq(HTTP_TX_SZ)
+			sock.rxbuffrq(1)
+			sock.varbuffrq(1)	
+		next i
+		sys.buffalloc
+		for i = 0 to NUM_HTTP_SOCKETS-1
+			sock.num = SOCK_HTTP+i
+			sock.inconmode=PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+		next i
+	case SOCK_SNTP,SOCK_UDP:		
+		sock.num = alloc
+		sock.inconmode=PL_SOCK_INCONMODE_NONE
+		sock.discard
+		while sock.statesimple<>PL_SSTS_CLOSED	
+		wend
+		sock.rxbuffrq(4)
+		sock.txbuffrq(1)	
+		sys.buffalloc
+		sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+	case SOCK_LS:
+		sock.num = SOCK_LS
+		sock.inconmode=PL_SOCK_INCONMODE_NONE
+		sock.discard
+		while sock.statesimple<>PL_SSTS_CLOSED	
+		wend
+		sock.txbuffrq(2)
+		sock.rxbuffrq(2)
+		sock.cmdbuffrq(1) 'buffer for incoming inband commands
+		sock.rplbuffrq(1) 'buffer for outgoing inband replies
+		sock.tx2buffrq(2) 
+		sys.buffalloc
+		sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT		
+	case SOCK_DHCP:
+		sock.num = SOCK_DHCP
+		sock.inconmode=PL_SOCK_INCONMODE_NONE
+		sock.discard
+		while sock.statesimple<>PL_SSTS_CLOSED			
+		wend
+		sock.txbuffrq(5)
+		sock.rxbuffrq(5)
+		sys.buffalloc
+		sock.inconmode=PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+	end select
+end sub
+
+'=============================================================
+public function device_check_DHCP(init as no_yes) as ok_ng
+	dim f as byte
+	dim dhcp_ip, dhcp_gateway, dhcp_netmask as string(16)
+	dim dhcp_result as ok_ng
+	dhcp_result = OK
+	if init = NO then 
+		dhcp_lease_time = dhcp_lease_time - 1
+	else
+		dhcp_lease_time = 0
+	end if
+	
+	if dhcp_lease_time = 0 then
+		if init = NO then device_alloc_memory(SOCK_HTTP,SOCK_DHCP)
+		if on_sys_timer_event_dest = ON_SYS_TIMER_EVENT_DEST_CLOCK or on_sys_timer_event_dest=ON_SYS_TIMER_EVENT_DEST_NONE then
+			device_sys_busy(yes)
+			dhcp_result=dhcp_obtain(dhcp_ip, dhcp_gateway, dhcp_netmask, dhcp_lease_time,  setting_get("DN",0))
+			device_sys_busy(no)
+		end if
+	'following code make sure all the socket before changing network properties
+		sock.inconenabledmaster=NO 
+		for f=0 to sock.numofsock-1
+			sock.num=f
+			if sock.statesimple<>PL_SSTS_CLOSED then
+				sock.discard
+				while sock.statesimple<>PL_SSTS_CLOSED	
+				wend
+			end if
+		next f
+		if init = NO then device_alloc_memory(SOCK_DHCP,SOCK_HTTP)
+		if dhcp_result=OK then
+			'DHCP session was successful
+			rtc.getdata(stg_timestamp.ts_daycount,stg_timestamp.ts_mincount,stg_timestamp.ts_seconds)			
+			setting_sg("IP",0,dhcp_ip,EN_STG_SET)
+			setting_sg("GI",0,dhcp_gateway,EN_STG_SET)
+			setting_sg("NM",0,dhcp_netmask,EN_STG_SET)
+			declare_ip_obtained
+		else
+			declare_ip_set
+		end if
+		set_net_ip() 'correct way of setting net.ip!
+		net.gatewayip = setting_get("GI",0)
+		net.netmask = setting_get("NM",0)
+		sock.inconenabledmaster=YES 
+	end if
+	device_check_DHCP = dhcp_result
+end function
+
+'============================================================= 
+public sub device_SNTPAutoSync
+'A timer subroutin. It should be called periodically (put it in on_sys_timer event), it would check if the current time is the time to connect to the time server and syncronize the time.
+	dim wMinutes as word
+	dim sec as byte
+	dim auto_sync_hr, auto_sync_min as byte
+	dim s as string(5)	
+	if setting_get("TF",0) = "0" then exit sub
+	setting_sg("TC",0,s,EN_STG_GET)
+	auto_sync_hr = val(left(s,2))
+	auto_sync_min = val(right(s,2))
+	rtc.getdata("",wMinutes,sec)	
+	if auto_sync_flag = YES then
+		if hours(wMinutes) = auto_sync_hr and minutes(wMinutes) = auto_sync_min then
+			device_sys_busy(yes)
+			kp.enabled = NO
+			reader_master_switch(PL_OFF)
+			s = device_operation("K")
+			device_sys_busy(no)
+			kp.enabled = yes
+			reader_master_switch(PL_ON)
+			auto_sync_flag = NO
+			ui_clock_force_print = YES
+			lcd_clear(24,15,80,37)
+		end if
+	else
+		if hours(wMinutes) <> auto_sync_hr or minutes(wMinutes) <> auto_sync_min then auto_sync_flag = YES	
+	end if	
+end sub
+
+'=============================================================
+public sub device_html_sync_state
+	if sync_retry > 0 then 
+		if sync_retry = DEVICE_SNTP_RETRY then 
+			sock_setsend("<h3>Synchronizing time with Internet Time Server...</h3>")
+		else
+			if sync_success = NO then
+				sock_setsend("<h3>Fail to synchronize, retry...."+chr(40)+str(DEVICE_SNTP_RETRY-sync_retry)+"/"+str(DEVICE_SNTP_RETRY-1)+chr(41)+"</h3>")
+			else
+				sock_setsend("<h3>Synchronization Successful! Redirecting to Time Setting Page in 3 second</h3>")
+			end if
+		end if
+	else
+		sock_setsend("<h3>Fail to synchronize! Redirecting to Time Setting Page in 3 second</h3>")
+	end if
+end sub
+
+'=============================================================
+public sub device_html_sync
+	if sync_retry > 0 and sync_success = NO then
+		sock_setsend("<meta http-equiv='Refresh' content='"+str(SNTP_WAIT_REPLY*SNTP_RETRY/2)+";url=sync.html?session="+login_data+"&opt=synctime&target=showframe'>")
+	else 
+		sock_setsend("<meta http-equiv='Refresh' content='3;url=time.html?session="+login_data+"&target=showframe'>")
+	end if
+end sub
+'=============================================================
+public function device_spec_arg_sg(byref setting_name as string,index as byte, byref setting_val as string, byref stg_num as byte, rw as en_stg_rdwr) as en_stg_status
+	select case rw
+	case EN_STG_GET:
+		Select case setting_name
+		case "TD":
+			dim wDaycount as word
+			dim date_str as string(14)
+			rtc.getdata(wDaycount,0,0)
+			CovertTimeType(date_str,wDaycount,0,0,TIME_TO_STR)
+			setting_val
+			setting_val = mid(date_str,7,2)+"/"+mid(date_str,5,2)+"/"+left(date_str,4)
+			device_spec_arg_sg = EN_STG_STATUS_OK
+			stg_num = TD_STG_NUM
+		case "TT":
+			dim wMinute as word
+			dim time_str as string(19)
+			rtc.getdata(0,wMinute,0)
+			CovertTimeType(time_str,0,wMinute,0,TIME_TO_STR)
+			setting_val = mid(time_str,9,2)+":"+mid(time_str,11,2)
+			device_spec_arg_sg = EN_STG_STATUS_OK
+			stg_num = TT_STG_NUM
+		case else
+			device_spec_arg_sg = EN_STG_STATUS_UNKNOWN
+		end select
+	case EN_STG_SET:
+		Select case setting_name
+		case "TD":
+			dim pos1,pos2 as byte
+			dim sYear as string(4)
+			dim sMonth, sDate as string(2)
+			pos1 = instr(1,setting_val,"/",1)
+			pos2 = instr(pos1+1,setting_val,"/",1)
+			sYear = mid(setting_val,pos2+1,4)
+			sMonth = mid(setting_val,pos1+1,2)
+			sDate = mid(setting_val,1,2)
+			if clock_set_time(sYear,sMonth,sDate,"","","00",no) = true then
+				device_spec_arg_sg = EN_STG_STATUS_OK
+			else
+				device_spec_arg_sg = EN_STG_STATUS_INVALID
+			end if
+			stg_num = TD_STG_NUM
+		case "TT":
+			if clock_set_time("","","",mid(setting_val,1,2),mid(setting_val,4,2),"00",no) = true then
+				device_spec_arg_sg = EN_STG_STATUS_OK
+			else
+				device_spec_arg_sg = EN_STG_STATUS_INVALID
+			end if
+			stg_num = TT_STG_NUM
+		case else
+			device_spec_arg_sg = EN_STG_STATUS_UNKNOWN
+		end select
+	end select
+end function
+
+'=============================================================
+public sub lcd_print_logo
+	romfile.open(LCD_STD_FONT)
+	lcd.setfont(romfile.offset)
+	lcd.forecolor = LCD_FORECOLOR
+	lcd.backcolor = LCD_BACKCOLOR
+	lcd_clear(0,0,lcd.width,lcd.height)
+ 
+	romfile.open("logo.bmp")
+	lcd.bmp(romfile.offset,4,2,0,0,30,30)
+	romfile.open("giga.bmp")
+	lcd.bmp(romfile.offset,4,35,0,0,121,16)
+	lcd.textalignment = PL_LCD_TEXT_ALIGNMENT_TOP_RIGHT
+	lcd.textverticalspacing = 1
+	lcd.printaligned("TR610`Time Recorder`"+FIRMWARE_VERSION,40,2,lcd.width-44,30)
+	lcd.print("Please wait...",4,lcd.height-FONT_HEIGHT-1)
+end sub
+
+'=============================================================
+function device_add_record(sID as string(ID_LEN)) as en_tbl_status
+	dim wdaycount, wmincount as word
+	dim bsec as byte
+	dim stemp as string(14)
+	dim sdate as string(10)
+	dim stime as string(8)
+	rtc.getdata(wdaycount,wmincount,bsec)
+	CovertTimeType(stemp,wdaycount,wmincount,bsec,TIME_TO_STR)
+	sdate = left(stemp,8)
+	stime = right(stemp,6)
+	tbl_select(EVENT_TBL)
+	tbl_field_sg("id",sID,EN_TBL_SET)
+	tbl_field_sg("type",str(current_event),EN_TBL_SET)
+	tbl_field_sg("DATE",sdate ,EN_TBL_SET)
+	tbl_field_sg("TIME",stime ,EN_TBL_SET)
+	tbl_gen_UID()
+	device_add_record = tbl_record_add()
+	device_modtime_sg("",EVENT_TBL,DEVICE_SET)
+	if login_mode = CMD_MODE_AGGREGATE and event_in_proc = no then
+		ProcessCurEvents(EVENT_TBL)
+	end if
+end function
+
+'=============================================================
+public function device_get_field_val(context_name as string(CONTEXT_NAME_LEN), field_name as string(RECORD_NAME_LEN), byref field_val as string) as ok_ng
+	dim sdate as string(23)
+	dim stime as string(8)
+	device_get_field_val = NG
+	if field_name = "date" then
+		if tbl_field_sg("DATE",sdate,EN_TBL_GET) <>EN_TBL_STATUS_OK then exit function
+		if tbl_field_sg("TIME",stime,EN_TBL_GET)<>EN_TBL_STATUS_OK then exit function
+		field_val = sdate+stime
+		TimeFormatStyle(field_val,0,DEVICE_GET)
+		field_val = field_val+".999"
+	else
+		if tbl_field_sg(field_name,field_val,EN_TBL_GET)<>EN_TBL_STATUS_OK  then exit function
+	end if
+	device_get_field_val = OK
+end function
+
+'=============================================================
+public sub device_card_read(sID as string(ID_LEN))
+'Descr: When ID card is read, compare with Master card, if it's a mastcard, call the setting menu otherwise save the event. 
+	dim result as en_tbl_status
+	dim sMC as string(ID_LEN)
+	dim temp as string
+	dim rec_num as word
+	beep.divider = 10000	
+	beep.play("B-",PL_BEEP_CANINT)
+	setting_sg("MC",0,sMC,EN_STG_GET)
+	tbl_select("TBL_WL")
+	if sID = "" then exit sub
+	if sID = sMC then
+		key_led_reset
+		mc_read = YES
+		exit sub
+	else
+		rec_num = 1
+		if setting_sg("WL",0,temp,EN_STG_GET)<>EN_STG_STATUS_OK then 
+			temp = SETTING_UNKNOWN
+			ui_clock_card_read(temp)
+			exit sub
+		end if
+		if temp = "1" then
+			if tbl_record_find(no,chr(len(sID))+sID,"ID",rec_num,EN_TBL_SEARCH_DOWN,PL_FD_FIND_EQUAL)<>EN_TBL_STATUS_OK then 
+				temp = MSG_INVAILD_ID
+				ui_clock_card_read(temp)
+				beep.divider = 10000
+				beep.play("BBBBBB",PL_BEEP_CANINT)
+				result = device_add_record(sID)
+				goto varify
+			else 
+				if tbl_record_ptr_sg(rec_num,EN_TBL_SET)<>EN_TBL_STATUS_OK then temp = MSG_SYS_ERROR
+				if tbl_record_sg(EN_TBL_GET)<>EN_TBL_STATUS_OK then temp = MSG_SYS_ERROR
+				if tbl_field_sg("NAME",temp,EN_TBL_GET)<>EN_TBL_STATUS_OK then temp = MSG_SYS_ERROR
+				if temp = MSG_SYS_ERROR then 
+					ui_clock_card_read(temp)
+					exit sub
+				end if
+			end if
+		else
+			temp = sID
+		end if
+		ui_clock_card_read(temp)
+		device_operation("Z")
+		result = device_add_record(sID)
+varify:
+		select case result
+		case EN_TBL_STATUS_OK: exit sub
+		case EN_TBL_STATUS_FULL: temp = MSG_SYS_FD_FULL
+		case else
+			temp = MSG_SYS_ERROR
+		end select
+		ui_clock_card_read(temp)
+	end if
+end sub
+
+'=============================================================
+public sub device_lcd_print_logo
+'Descr: display logo image file on LCD
+	romfile.open(LCD_STD_FONT)
+	lcd.setfont(romfile.offset)
+	lcd.forecolor = LCD_FORECOLOR
+	lcd.backcolor = LCD_BACKCOLOR
+	lcd_clear(0,0,lcd.width,lcd.height)
+ 
+	romfile.open("logo.bmp")
+	lcd.bmp(romfile.offset,4,2,0,0,30,30)
+	romfile.open("giga.bmp")
+	lcd.bmp(romfile.offset,4,35,0,0,121,16)
+	lcd.textalignment = PL_LCD_TEXT_ALIGNMENT_TOP_RIGHT
+	lcd.textverticalspacing = 1
+	lcd.printaligned("TR610`Time Recorder`"+FIRMWARE_VERSION,40,2,lcd.width-44,30)
+	lcd.print("Please wait...",4,lcd.height-FONT_HEIGHT-1)
+end sub
+
+'=============================================================
+public sub device_replace_chr(byref s as string, a as string, b as string)
+	dim pos as byte
+	dim temp as string
+	pos = instr(1,s,a,1)
+	while pos > 0 
+		temp = right(s,len(s)-pos-len(a)+1)
+		s = left(s,pos-1)+b+temp
+		pos = instr(pos+1,s,a,1)
+	wend
+end sub
+
+'=============================================================
+public sub device_login_event(op as cmd_modes)
+'Descr: display the icon on LCD for different Login method.
+	dim x,y, x_offset as byte
+	if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_CLOCK then exit sub
+	x = 21
+	y = lcd.height - 10		
+	lcd_clear(x,y,14,9)
+	romfile.open(SMALL_ICON_FILE)
+	Select case op
+	case CMD_MODE_AGGREGATE
+		x_offset = 34
+		x = 21
+		y = lcd.height - 10
+		lcd.bmp(romfile.offset,x,y,x_offset,0,6,9)
+	case CMD_MODE_HTTP:
+		x_offset = 42
+		x = 29
+		y = lcd.height - 10
+		lcd.bmp(romfile.offset,x,y,x_offset,0,6,9)
+	case CMD_MODE_NONE:
+	end select
+end sub
+
+'=============================================================
+public sub device_sys_busy(busy as no_yes)
+'Descr: display busy icon on LCD
+	dim x,y, x_offset as byte
+	if on_sys_timer_event_dest <> ON_SYS_TIMER_EVENT_DEST_CLOCK then exit sub	
+	if busy= YES then
+		romfile.open(SMALL_ICON_FILE)
+		x_offset = 50
+		x = 37
+		y = lcd.height - 10
+		lcd.bmp(romfile.offset,x,y,x_offset,0,6,9)
+	else
+		x = 37
+		y = lcd.height - 10
+		lcd_clear(x,y,6,9)
+	end if
+end sub
+
+'=============================================================
+public sub device_login_timer_proc
+'Descr: universal login timer.
+	if login_tout>0 then
+		login_tout=login_tout-1
+		if login_tout=0 then logout()	
+	end if
+end sub
+
+'=============================================================
+public sub device_relay_timer
+'Descr: Turn on the relay and set it to 2 second timer
+	if relay_counter1 > 0 then
+		io.num = RELAY_IO1
+		if io.state = HIGH then io.state = LOW
+		relay_counter1 = relay_counter1-1
+		if relay_counter1=0 then io.state = HIGH
+	end if
+	if relay_counter2 > 0 then
+		io.num = RELAY_IO2
+		if io.state = HIGH then io.state = LOW
+		relay_counter2 = relay_counter2-1
+		if relay_counter2=0 then io.state = HIGH
+	end if
+end sub
+
+'=============================================================
+public function device_get_mem_usage as byte
+	dim log_info as tbl_type
+	dim temp1, temp2 as dword
+	dim record_num as word
+	tbl_select("CR")
+	tbl_get_tbl_info(log_info)
+	tbl_record_number_get(record_num,NO)
+	temp1 = log_info.Maxrecs
+	temp2 = record_num
+	temp2 = temp2*100
+	temp1 = temp2/temp1
+	if temp1 < 98 then 
+		device_get_mem_usage = temp1
+	else
+		device_get_mem_usage = 100
+	end if
+end function
+
+'=============================================================
+public sub device_log_download
+	dim s, stemp1, stemp2 as string
+	dim i,j as byte
+	dim wdaycount, wmincount as word
+	dim bsec as byte
+	lcd_print_msg("File downloading`please Wait",20,10,lcd.width-40,lcd.height-30,yes)
+	reset_login_timeout
+	kp.enabled = NO
+	for i = READER_PORT_NUM to READER_PORT_NUM+NUM_OF_READER-1
+		ser.num = i
+		ser.enabled = NO
+	next i
+	tbl_select("CR")
+	fd.setpointer(1)
+	do	
+		s = ""
+		stemp1 = fd.getdata(192)
+		for j = 0 to 5
+		stemp2 = mid(stemp1,1+32*j,32)
+		if left(stemp2,1) = ACTIVE_FLAG then
+			s = s+mid(stemp2,11,ID_LEN)+","
+			select case asc(mid(stemp2,11+ID_LEN,1))
+			case 0: s = s+"CLOCK IN,"
+			case 1: s = s+"CLOCK OUT,"
+			case 2: s = s+"TEMP IN,"
+			case 3: s = s+"TEMP OUT,"
+			end select
+			wdaycount = asc(mid(stemp2,20,1))*256+asc(mid(stemp2,21,1))
+			wmincount = asc(mid(stemp2,22,1))*256+asc(mid(stemp2,23,1))
+			bsec = asc(mid(stemp2,24,1))
+			CovertTimeType(stemp2,wdaycount,wmincount,bsec,TIME_TO_STR)
+			s = s+stemp2+chr(CR)+chr(LF)
+		end if
+		next j			
+		sock_setsend(s)
+	loop while fd.pointer < fd.filesize and sock.statesimple = PL_SSTS_EST 
+	lcd_clear(19,9,lcd.width-38,lcd.height-28)
+	ui_clock_force_print = YES
+	kp.enabled = YES
+	for i = READER_PORT_NUM to READER_PORT_NUM+NUM_OF_READER-1
+		ser.num = i
+		ser.enabled = YES
+	next i
+end sub
+
+'=============================================================
+public sub device_wl_download
+	dim s, stemp1, stemp2 as string
+	dim i,j, name_len as byte
+	lcd_print_msg("File downloading`please Wait",20,10,lcd.width-40,lcd.height-30,yes)
+	reset_login_timeout
+	kp.enabled = NO
+	for i = READER_PORT_NUM to READER_PORT_NUM+NUM_OF_READER-1
+		ser.num = i
+		ser.enabled = NO
+	next i
+	
+	tbl_select("TBL_WL")
+	fd.setpointer(1)
+	do	
+		s = ""
+		stemp1 = fd.getdata(220)
+		for j = 0 to 4
+			stemp2 = mid(stemp1,1+44*j,44)
+			if left(stemp2,1) = ACTIVE_FLAG then
+				s = s+mid(stemp2,11,ID_LEN)+","
+				name_len = asc(mid(stemp2,11+ID_LEN,1))
+				s = s+mid(stemp2,12+ID_LEN,name_len)+chr(CR)+chr(LF)
+			end if
+		next j
+		if len(s) > 0 then
+			sock_setsend(s)
+		end if
+	loop while fd.pointer < fd.filesize and sock.statesimple = PL_SSTS_EST 
+
+	lcd_clear(19,9,lcd.width-38,lcd.height-28)
+	ui_clock_force_print = YES
+	kp.enabled = YES
+	for i = READER_PORT_NUM to READER_PORT_NUM+NUM_OF_READER-1
+		ser.num = i
+		ser.enabled = YES
+	next i
+end sub
+'=============================================================
+sub device_tbl_deleted(tbl_name as string)
+	print_bar = YES
+	ui_clock_force_print = YES
+end sub

@@ -1,0 +1,23 @@
+<?
+  include "global.tbh"
+  include "../../lib/common/html.tbh"
+  include "../../lib/common/settings.tbh"
+?>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD W3 HTML//EN">
+<HTML>
+<HEAD>
+</HEAD>
+
+<BODY>
+<h1>TCP/IP Settings</h1>
+<form action="tcpip_post.html" method="post">
+  Use DHCP:
+  <input type="radio" name="dhcp" value="yes" <? if settingsGet("DH", 0) = 1 then htmlWrite("checked") ?> > Yes
+  <input type="radio" name="dhcp" value="no"  <? if settingsGet("DH", 0) = 0  then htmlWrite("checked") ?> > No<br>
+  IP Address:<input type="text" name="ip" value="<? htmlWrite(net.ip) ?>"><br>
+  Network mask:<input type="text" name="nm" value="<? htmlWrite(net.netmask) ?>"><br>
+  Gateway:<input type="text" name="gw" value="<? htmlWrite(net.gatewayip) ?>"><br>
+  <input type="submit" value="set">
+</form>
+</BODY>

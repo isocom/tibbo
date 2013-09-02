@@ -1,0 +1,22 @@
+include "db.tbh"
+include "dbHumans.tbh"
+include "../common/common.tbh"
+
+const RECORD_SIZE = 32
+const TERMINATOR = 0
+
+public sub dbHumansInit
+  dbInitTable("Humans", RECORD_SIZE, 500)
+end sub
+
+public function dbHumansRead as HumanRecord
+  dim tmp as string = dbCurrentRecord  
+  dbHumansRead.name = commonStringTrim(tmp, TERMINATOR)
+end function
+
+public sub dbHumansAdd(human as HumanRecord)
+  dbUse("Humans")
+  dim r as string(RECORD_SIZE) = human.name
+  commonStringEnlarge(r, 32, TERMINATOR)
+  dbAdd(r)
+end sub

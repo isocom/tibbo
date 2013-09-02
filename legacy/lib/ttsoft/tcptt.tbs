@@ -1,0 +1,135 @@
+const BOF = &hCA
+const EOF = &hAC
+
+dim tcpttTimerCounter as long = 0
+dim tcpttLastTxTime as long = 0
+dim tcpttInRxMode as boolean = false
+
+dim tcpttTranIds(255) as byte ' numery seryjne transakcji
+dim tcpttRecBuffer as string = ""
+dim tcpttNewFrameReceived as boolean = false
+dim tcpttLastFrame as string
+dim tcpttLastTxRxHadError as boolean = false
+
+declare function tcpttXor(data as string) as byte
+declare function tcpttFletcher16(data as string) as string(2)
+
+public sub tcpttInit(portNum as byte)
+  'Initialize the com port for RS-485 coverter for TCP/TT bus
+  ser.num = portNum
+  ser.enabled = NO
+  ser.baudrate = ser.div9600
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES
+  
+  dim i as byte
+  for i = 0 to 254
+    tcpttTranIds(i) = 0
+  next i
+end sub
+
+public sub tcpttTimer
+  tcpttTimerCounter = tcpttTimerCounter + 1
+
+  if tcpttTimerCounter - tcpttLastTxTime > 5 then 'brak odpowiedzi
+    tcpttInRxMode = false
+	tcpttLastTxRxHadError = true
+	tcpttRecBuffer = ""
+  end if
+end sub
+
+public sub tcpttSend(id as byte, frame as string)
+  dim newTrId as byte = tcpttTranIds(id) + 1
+  if newTrId = 0 then newTrId = 1
+
+  dim wrapped as string = ""  
+  wrapped = wrapped + chr(1) ' typ ramki
+  wrapped = wrapped + chr(id) ' id urzadzenia
+  wrapped = wrapped + chr(newTrId)            ' akt transakcja
+  wrapped = wrapped + chr(tcpttTranIds(id))   ' pop transakcja
+  wrapped = wrapped + chr(len(frame)+10)      ' dlugosc ramki
+  wrapped = wrapped + frame                   ' ramka wewnetrzna
+  wrapped = wrapped + chr(tcpttXor(frame))
+  wrapped = wrapped + tcpttFletcher16(wrapped)
+
+  ser.num = 0
+  ser.setdata(chr(BOF) + wrapped + chr(EOF))
+  ser.send
+  
+  tcpttTranIds(id) = newTrId
+
+  tcpttLastTxTime = tcpttTimerCounter
+  tcpttInRxMode = true
+  tcpttLastTxRxHadError = false
+end sub
+
+public sub tcpttProcess
+  tcpttRecBuffer = tcpttRecBuffer + ser.getdata(255)
+  
+  if len(tcpttRecBuffer) > 6 then
+	if asc(left(tcpttRecBuffer, 1)) = BOF and asc(right(tcpttRecBuffer, 1)) = EOF and len(tcpttRecBuffer) = asc(mid(tcpttRecBuffer, 6, 1)) then
+      tcpttLastFrame = mid(tcpttRecBuffer, 2, len(tcpttRecBuffer)-2)
+	  tcpttNewFrameReceived = true
+      tcpttRecBuffer = ""
+	  tcpttInRxMode = false
+	  tcpttLastTxRxHadError = false
+	end if
+  end if
+  if len(tcpttRecBuffer) > 100 then tcpttRecBuffer = ""
+end sub
+
+public function tcpttIsNewFrameArrived as boolean
+  tcpttIsNewFrameArrived = tcpttNewFrameReceived
+  if tcpttNewFrameReceived then tcpttNewFrameReceived = false
+end function
+
+public function tcpttGetInternalFrame as string
+  tcpttGetInternalFrame = mid(tcpttLastFrame, 6, len(tcpttLastFrame)-3-5)
+end function
+
+public function tcpttCanSend as boolean
+  tcpttCanSend = not tcpttInRxMode
+end function
+
+public function tcpttLastTransmissionHadError as boolean
+  tcpttLastTransmissionHadError = tcpttLastTxRxHadError
+end function
+
+function tcpttFletcher16(data as string) as string(2)
+  dim sum1 as word = 255
+  dim sum2 as word = 255
+  dim l as byte = len(data)
+  dim i as byte = 0
+
+  while l > 0
+	dim tl as byte
+	if l > 21 then tl = 21 else tl = l
+	l = l - tl
+	do
+	  sum1 = sum1 + asc(right(left(data, i+1), 1)) 
+      sum2 = sum2 + sum1
+	  i = i + 1
+	  tl = tl - 1
+	loop while tl>0
+	sum1 = (sum1 and 255) + (sum1 / 256)
+	sum2 = (sum2 and 255) + (sum2 / 256)
+  wend
+
+  sum1 = (sum1 and 255) + (sum1 / 256)
+  sum2 = (sum2 and 255) + (sum2 / 256)
+  tcpttFletcher16 = chr(sum1) + chr(sum2)
+end function
+
+function tcpttXor(data as string) as byte
+  dim crc as byte = 0
+  dim i as byte
+  for i = 1 to len(data)
+    crc = crc xor asc(right(left(data, i), 1))
+  next i
+  tcpttXor = crc
+end function

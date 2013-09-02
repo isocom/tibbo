@@ -1,0 +1,40 @@
+const LCD_FIX_FONT = "Font-5x7-V.bin"
+const LCD_STD_FONT = "Font-5x7-VP.bin"
+const LCD_CLOCK_DIGITS_FONT = "Digits-24x16-V.bin"
+
+const BMP_NONE           =   0
+const BMP_IN_XOFFSET     =   1
+const BMP_OUT_XOFFSET    =  18
+const BMP_TIN_XOFFSET    =  35
+const BMP_TOUT_XOFFSET   =  52
+const BMP_CANCEL_XOFFSET =  69
+const BMP_ENTER_XOFFSET  =  86
+const BMP_UP_XOFFSET     = 103
+const BMP_DOWN_XOFFSET   = 120
+const BMP_MOVE_XOFFSET   = 137
+const BMP_ROLL_XOFFSET   = 154
+const BMP_YES_XOFFSET    = 171
+const BMP_NO_XOFFSET     = 188
+const BMP_RIGHT_XOFFSET  = 205
+const BMP_LEFT_XOFFSET   = 223
+const BMP_MORE_XOFFSET   = 243
+const BMP_STORE_XOFFSET  = 263
+
+declare sub displayInit(rotate as no_yes)
+declare sub displayTimer
+declare sub displayDrawTTSoftLogo
+declare sub displayOverrideLogo(override as boolean, s1 as string(21), s2 as string(21), s3 as string(21))
+
+declare sub displayShowClock(visible as boolean)
+
+declare sub displayBacklight(on as off_on)
+declare sub displaySetContrast(level as byte)
+declare sub displayClearAll
+declare sub displayClear(x as byte, y as byte, width as byte, height as byte)
+declare sub displayInverse
+declare sub displayMessage(byref msg as string)
+declare sub displayPrintMsg(byref msg as string, x as byte, y as byte, w as byte, h as byte, bolder as no_yes)
+declare sub displayPrintTxt(font as byte, aligment as byte, byref msg as string, x as byte, y as byte, w as byte, h as byte, bolder as no_yes)
+declare sub displayPrint(byref font as string, byref msg as string, x as byte, y as byte)
+declare sub showTime(time as word, x as byte, y as byte, blink as boolean)
+

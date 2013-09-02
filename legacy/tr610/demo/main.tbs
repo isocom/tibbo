@@ -1,0 +1,109 @@
+include "global.tbh"
+
+include "../../lib/common/dhcp.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+
+dim normalState as boolean = false 'means after initialization
+dim fsmState as FSMStateEnum = Iddle
+dim fsmStateTimeout as short = -1
+dim globalString1 as string = "" 'globalny string do przekazywania parametrów miedzy modulami
+dim globalByte1 as byte = 0 'globalny byte do przekazywania parametrów miedzy modulami
+dim globalByte2 as byte = 0 'globalny byte do przekazywania parametrów miedzy modulami
+
+public sub changeFSMState(newState as FSMStateEnum)
+  fsmStateTimeout = -1
+  select case fsmState
+    case Iddle
+      displayShowClock(false)
+	case EnteringTime
+	  keypadAllLEDReset
+  end select
+
+  select case newState
+    case Iddle
+      displayShowClock(true)
+    case CardReaded
+	  fsmStateTimeout = 20
+	  displayPrintMsg(readerLastCardSN, 0, 0, lcd.width, lcd.height, YES)
+	case DiplayingMsg
+	  fsmStateTimeout = 100
+	  displayPrintMsg(globalString1, 0, 0, lcd.width, lcd.height, YES)
+	case DiplayingTxt
+	  fsmStateTimeout = 100
+	  displayPrintTxt(globalByte1, globalByte2, globalString1, 0, 0, lcd.width, lcd.height, NO)
+	case EnteringTime
+	  fsmStateTimeout = 300
+	  enterTimeStart
+	case PreparingToTan
+	  entertimePreTan
+	case Tanning
+	  entertimeTan
+  end select
+
+  fsmState = newState
+end sub
+
+'=============================================================
+sub on_sys_init
+  TR610DeviceInit(YES, false, "192.168.1.100", "255.255.255.0", "192.168.1.1")
+
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "TTD-0006-02 LanReader", 5, 05)
+  displayPrint(LCD_STD_FONT, "SKU: " + "DEMO", 5, 15)
+  displayPrint(LCD_FIX_FONT, "SNR: " + "000001", 5, 35)
+  displayPrint(LCD_FIX_FONT, "IP : " + net.ip, 5, 45)
+  displayPrint(LCD_FIX_FONT, "TIP: " + "n/a", 5, 55)
+
+  commonSleep(5)
+  displayShowClock(true)
+  normalState = true  
+end sub
+
+'=============================================================
+'System Wide 1/10 second counter, staring from 0 on powerUP
+dim sysTimeCounter as long = 0
+
+sub on_sys_timer
+  if not normalState then exit sub
+
+  relayTimer
+  displayTimer
+  keypadTimer
+  entertimeTimer
+
+  sysTimeCounter = sysTimeCounter + 1
+  if fsmStateTimeout >= 0 then fsmStateTimeout = fsmStateTimeout - 1
+  if fsmStateTimeout = 0 then changeFSMState(Iddle)
+end sub
+
+'======== OBSLUGA PORTU SZEREGOWEGO ===========================
+sub on_ser_data_arrival
+  select case ser.num
+    case READER_PORT_NUM:
+      readerProcess
+  end select
+
+  if readerIsNewCardSNDetected and fsmState = Iddle then
+    beep.play("B", PL_BEEP_CANINT)
+    'changeFSMState(CardReaded)
+	changeFSMState(EnteringTime)
+  end if
+end sub
+
+'======== OBSLUGA KLAWIATURY =================================
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+  dim key as KeypadKeyEnum
+  
+  if fsmState = Iddle then
+    key = keypadOnKey(key_event, key_code)
+  else
+    key = keypadKeyDecode(key_code)
+  end if
+
+  if fsmState = EnteringTime then enterTimeKP(key_event, key_code)
+end sub

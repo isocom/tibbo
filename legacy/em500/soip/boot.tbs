@@ -1,0 +1,524 @@
+'********************************************************************************
+'	APPLICATION STARTUP
+'********************************************************************************
+
+include "global.tbh"
+
+public sub boot
+	dim f,x as byte
+	dim s as string
+	dim dhcp_ip,dhcp_gatewayip,dhcp_netmask as string(15)
+	dim num_ports_in_use as byte
+
+
+'----- initialize all libraries -----
+	settings_init()
+	net_cmd_init() 'must be done before ser_cmd_init() because it sets num_sdf, sdf_addr()
+	ser_cmd_init()
+	html_session_init()
+
+	'----- initialize run-time vars -----
+	error_mode=NO
+	login_mode=CMD_MODE_NONE
+	login_data=""
+	login_tout=0
+	quick_init_flag=QI_NULL
+
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		overrun_es(f)=NO
+		overrun_se(f)=NO
+	next f
+
+	'first assume we have no serial ports
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		ser.num=f
+		port_in_use(f)=NO
+		ser.ctsmap=PL_INT_NULL
+		ser.rtsmap=PL_IO_NULL
+		dsr_mapping(f)=PL_IO_NULL
+		dtr_mapping(f)=PL_IO_NULL
+	next f
+
+
+	#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202 or PLATFORM_ID=EM500
+		'----- INDEPENDENT PORTS or a SINGLE PORT -----
+		
+		'we have one port in any case
+		port_in_use(0)=YES
+		ser.num=0
+		ser.ctsmap=SER0_CTS
+		ser.rtsmap=SER0_RTS
+		cts_mapping(0)=SER0_CTS
+		dsr_mapping(0)=SER0_DSR
+		dtr_mapping(0)=SER0_DTR
+		num_ports_in_use=1
+		
+		#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202 
+			x=val(setting_get("PC",0))
+			if x>=1 then
+				'we have second port
+				port_in_use(1)=YES
+				ser.num=1
+				ser.ctsmap=SER1_CTS
+				ser.rtsmap=SER1_RTS
+				cts_mapping(1)=SER1_CTS
+				dsr_mapping(1)=SER1_DSR
+				dtr_mapping(1)=SER1_DTR
+				num_ports_in_use=2
+			end if
+			
+			if x>=2 then
+				'we have third port
+				port_in_use(2)=YES
+				ser.num=2
+				ser.ctsmap=SER2_CTS
+				ser.rtsmap=SER2_RTS
+				cts_mapping(2)=SER2_CTS
+				dsr_mapping(2)=SER2_DSR
+				dtr_mapping(2)=SER2_DTR
+				num_ports_in_use=3
+			end if
+
+			if x>=3 then
+				'we have fourth port
+				port_in_use(3)=YES
+				ser.num=3
+				ser.ctsmap=SER3_CTS
+				ser.rtsmap=SER3_RTS
+				cts_mapping(3)=SER3_CTS
+				dsr_mapping(3)=SER3_DSR
+				dtr_mapping(3)=SER3_DTR
+				num_ports_in_use=4
+			end if
+		#endif
+	#else
+		'----- CHANNELS -----
+		
+		port_in_use(0)=YES	'port 0 is always in use
+		ser.num=0			'select case below -- will start setup with port 0
+
+		
+		select case val(setting_get("PC",0))
+		case M0:	'RX/TX		CTS/RTS		DSR/DTR		---/---
+			cts_mapping(0)=L2	
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+
+		case M1:	'RX/TX		CTS/RTS		DSR/DTR		RX3/tx3
+			cts_mapping(0)=L2	
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(3)=YES
+		
+		case M2:	'RX/TX		CTS/RTS		RX2/TX2		RX3/tx3
+			cts_mapping(0)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			port_in_use(2)=YES
+			port_in_use(3)=YES
+
+		case M3:	'RX/TX		CTS/RTS		RX2/TX2		CTS2/rts2
+			cts_mapping(0)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			port_in_use(2)=YES
+			ser.num=2
+			cts_mapping(2)=L6
+			ser.ctsmap=I6
+			ser.rtsmap=L7
+		
+		case M4:	'RX/TX		CTS/RTS		RX2/TX2		DSR2/dtr2
+			cts_mapping(0)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			port_in_use(2)=YES
+			dsr_mapping(2)=L6
+			dtr_mapping(2)=L7
+		
+		case M5:	'RX/TX		RX1/TX1		DSR/DTR		RX3/tx3
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(1)=YES
+			port_in_use(3)=YES
+
+		case M6:	'RX/TX		RX1/TX1		DSR/DTR		CTS1/rts1
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(1)=YES
+			ser.num=1
+			cts_mapping(1)=L6
+			ser.ctsmap=I6
+			ser.rtsmap=L7
+	
+		case M7:	'RX/TX		RX1/TX1		DSR/DTR		DSR1/dtr1
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(1)=YES
+			dsr_mapping(1)=L6
+			dtr_mapping(1)=L7
+	
+		case M8:	'RX/TX		RX1/TX1		RX2/TX2		RX3/tx3
+			port_in_use(1)=YES
+			port_in_use(2)=YES
+			port_in_use(3)=YES
+		
+		case M9:	'RX/TX		RX1/TX1		RX2/TX2		CTS/rts
+			cts_mapping(0)=L6
+			ser.ctsmap=I6
+			ser.rtsmap=L7
+			port_in_use(1)=YES
+			port_in_use(2)=YES
+		
+		case M10:	'RX/TX		RX1/TX1		RX2/TX2		DSR/dtr
+			dsr_mapping(0)=L6
+			dtr_mapping(0)=L7
+			port_in_use(1)=YES
+			port_in_use(2)=YES
+		
+		case M11:	'RX/TX		CTS/RTS		CTS3/RTS3	RX3/tx3
+			cts_mapping(0)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			port_in_use(3)=YES
+			ser.num=3
+			cts_mapping(3)=L4
+			ser.ctsmap=I4
+			ser.rtsmap=L5
+				
+		case M12:	'RX/TX		CTS/RTS		DSR3/DTR3	RX3/tx3	
+			cts_mapping(0)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+			port_in_use(3)=YES
+			dsr_mapping(3)=L4
+			dtr_mapping(3)=L5
+			
+		case M13:	'RX/TX		CTS3/RTS3	DSR/DTR		RX3/tx3
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(3)=YES
+			ser.num=3
+			cts_mapping(3)=L2
+			ser.ctsmap=I2
+			ser.rtsmap=L3
+
+		case M14:	'RX/TX		DSR3/DTR3	DSR/DTR		RX3/tx3
+			dsr_mapping(0)=L4
+			dtr_mapping(0)=L5
+			port_in_use(3)=YES
+			dsr_mapping(3)=L2
+			dtr_mapping(3)=L3
+		end select
+
+		'so how many ports will be in use?
+		for f=0 to MAX_NUM_SERIAL_PORTS-1
+			if port_in_use(f)=YES then num_ports_in_use=num_ports_in_use+1
+		next f
+	#endif
+	
+	
+#if PLATFORM_ID=EM1000
+	'----- disable signal strength LEDs (this is for DS1000) -----
+
+	'make sure there is no reset
+	io.num=PL_IO_NUM_46
+	io.enabled=YES
+	io.state=HIGH
+
+	'we will be turning LEDs off
+	io.num=PL_IO_NUM_48
+	io.enabled=YES
+	io.state=HIGH
+	'make 5 clocks
+	io.num=PL_IO_NUM_47
+	io.enabled=YES
+	for f=0 to 4
+		io.state=LOW
+		io.state=HIGH
+	next f
+#endif	
+	
+	'----- per-channel state indication -----
+
+	#if LED_INDICATION<>0
+		io.num=PL_IO_NUM_24
+		for f=0 to 7
+			io.num=PL_IO_NUM_24+f
+			io.enabled=YES
+		next f
+
+		pat.channel=1
+		pat.redmap=PL_IO_NUM_30
+		pat.greenmap=PL_IO_NUM_31
+
+		pat.channel=2
+		pat.redmap=PL_IO_NUM_28
+		pat.greenmap=PL_IO_NUM_29
+
+		pat.channel=3
+		pat.redmap=PL_IO_NUM_26
+		pat.greenmap=PL_IO_NUM_27
+
+		pat.channel=4
+		pat.redmap=PL_IO_NUM_24
+		pat.greenmap=PL_IO_NUM_25
+
+	#endif
+
+	'----- hardware mode of serial ports -----
+
+	#if PLATFORM_ID=EM1000
+		'this is for controlling the hardware mode of ports
+		'will only work on DS1002/3 (or compatible hardware)
+		'we first configure these ports for RS232
+		io.num=SER0_HDFD
+		io.state=HIGH
+		io.enabled=YES
+		io.num=SER0_RSMD
+		io.state=LOW
+		io.enabled=YES
+
+		io.num=SER1_HDFD
+		io.state=HIGH
+		io.enabled=YES
+		io.num=SER1_RSMD
+		io.state=LOW
+		io.enabled=YES
+		
+		io.num=SER2_HDFD
+		io.state=HIGH
+		io.enabled=YES
+		io.num=SER2_RSMD
+		io.state=LOW
+		io.enabled=YES
+		
+		io.num=SER3_HDFD
+		io.state=HIGH
+		io.enabled=YES
+		io.num=SER3_RSMD
+		io.state=LOW
+		io.enabled=YES
+	#endif
+
+	'----- setup operating modes according to settings -----
+		
+	'general settings
+	net.gatewayip=setting_get("GI",0)
+	net.netmask=setting_get("NM",0)
+	set_net_ip() 'correct way of setting net.ip!
+	param_dh=val(setting_get("DH",0))
+
+	'do we need to use DHCP?
+	pat.channel=0
+	if param_dh<>NO then
+		pat.play(PAT_ONE_SHORT_GREEN_LOOP,PL_PAT_CANINT)
+		if dhcp_obtain(dhcp_ip,dhcp_gatewayip,dhcp_netmask,dhcp_lease_time,s)=OK then
+			setting_set("IP",0,dhcp_ip)
+			setting_set("GI",0,dhcp_gatewayip)
+			setting_set("NM",0,dhcp_netmask)
+			net.ip=dhcp_ip
+			net.gatewayip=dhcp_gatewayip
+			net.netmask=dhcp_netmask
+		else
+			set_net_ip()
+		end if
+	end if
+	pat.play(PAT_BOTH_LOOP,PL_PAT_CANINT)
+
+	sock.inconenabledmaster=NO
+
+	'setup communication channels
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		sock.num=SOCK_COMM+f
+		if port_in_use(f)=NO then
+			sock.inconmode=PL_SOCK_INCONMODE_NONE
+		else
+			sock.connectiontout=val(setting_get("CT",f))*120 'because CT is in mins, property is in 1/2 sec intervals
+			sock.protocol=val(setting_get("TP",f))
+			sock.acceptbcast=val(setting_get("BU",f))
+			sock.inbandcommands=val(setting_get("IB",f))
+			param_rm(f)=val(setting_get("RM",f))
+			param_sf(f)=val(setting_get("SF",f))
+			set_sock_connmode(f) 'will set sock.inconmode and sock.reconmode		
+			sock.localportlist=setting_get("PN",f)
+			if sock.protocol=PL_SOCK_PROTOCOL_UDP then
+				sock.outport=val(sock.localportlist)
+			else
+				sock.outport=0
+			end if
+			param_cm(f)=val(setting_get("CM",f))
+			sock.targetip=setting_get("DI",f)
+			sock.targetport=val(setting_get("DP",f))
+			param_dt(f)=val(setting_get("DT",f))
+			param_ds(f)=val(setting_get("DS",f))
+			param_rc(f)=val(setting_get("RC",f))
+			param_op(f)=val(setting_get("OP",f))
+			param_nb(f)=val(setting_get("NB",f))
+			param_nd(f)=val(setting_get("ND",f))
+			set_ser_channel_for_normal_mode(f)
+			overriding_destination_set(f)=NO
+			can_show_data_transmission(f)=NO
+		end if
+	next f
+
+
+	'----- setup control sockets -----
+
+	'Primary command (UDP) port
+	sock.num=SOCK_UDP
+	sock.protocol=PL_SOCK_PROTOCOL_UDP
+	sock.localportlist="65535"
+	sock.inconmode=PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+	sock.reconmode=PL_SOCK_RECONMODE_3
+	sock.acceptbcast=YES
+	
+	'notification sockets
+	for f=SOCK_NOTIF to SOCK_NOTIF+MAX_NUM_SERIAL_PORTS-1
+		sock.num=f
+		sock.protocol=PL_SOCK_PROTOCOL_UDP
+		sock.inconmode=PL_SOCK_INCONMODE_NONE
+		sock.outport=65535
+	next f
+	
+	'HTTP sockets, also used for TELNET
+	for f=SOCK_HTTP to SOCK_HTTP+NUM_HTTP_SOCKETS-1
+		sock.num=f
+		sock.protocol=PL_SOCK_PROTOCOL_TCP
+		sock.localportlist="23"
+		sock.httpportlist="80"
+		sock.connectiontout=600
+		sock.inconmode=PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+		sock.reconmode= PL_SOCK_RECONMODE_0
+	next f
+
+
+	'----- allocate buffers -----
+
+	'Primary command (UDP) port
+	sock.num=SOCK_UDP
+	if sock.txbuffrq(SOCK_UDP_TXBUFF_SIZE)<>SOCK_UDP_TXBUFF_SIZE then
+		sys.halt
+		'you run out of buffers!
+	end if
+	
+	if sock.rxbuffrq(SOCK_UDP_RXBUFF_SIZE)<>SOCK_UDP_RXBUFF_SIZE then
+		sys.halt
+		'you run out of buffers!
+	end if
+	
+	'notification sockets
+	
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		sock.num=SOCK_NOTIF+f
+		if sock.txbuffrq(1)<>1 then
+			sys.halt
+			'you run out of buffers!
+		end if
+	next f
+
+	sys.buffalloc
+
+
+	'channels (data sockets and corresponding serial ports)
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		if port_in_use(f)=YES then
+			if set_comm_channel_buffers(f,NUM_CHANNEL_BUFFERS/num_ports_in_use)<>OK then
+				sys.halt
+				'you run out of buffers, your num_buffers parameter is too small
+			end if
+		end if
+	next f
+	
+	'HTTP sockets, also used for TELNET
+	for f=SOCK_HTTP to SOCK_HTTP+NUM_HTTP_SOCKETS-1
+		sock.num=f
+		
+		if sock.txbuffrq(SOCK_HTTP_TXBUFF_SIZE)<>SOCK_HTTP_TXBUFF_SIZE then
+			sys.halt
+			'you run out of buffers!
+		end if
+		
+		if sock.varbuffrq(1)<>1 then
+			sys.halt
+			'you run out of buffers!
+		end if
+	
+		sock.redir(PL_REDIR_SOCK0+sock.num)
+		
+	next f
+	
+	sys.buffalloc
+	
+	'Start!
+	pat_canint=NO 'this way the pattern below will not be screwed up
+
+	#if PLATFORM_ID=EM1000 or PLATFORM_ID=EM1202 or PLATFORM_ID=EM1206
+		beep.divider= 21600
+		beep.play(BEEP_LONG,PL_BEEP_CANINT)
+	#endif
+
+	pat.channel=0
+	pat.play(PAT_THREE_BOTH_ONCE,PL_PAT_CANINT)
+	#if LED_INDICATION<>0
+		for f=1 to MAX_NUM_SERIAL_PORTS
+			if port_in_use(f-1)=YES then
+				pat.channel=f
+				pat.play(PAT_TWO_SHORT_GREEN,PL_PAT_CANINT)
+			end if
+		next f
+	#endif
+	
+	'at this point serial ports are still closed. Take decision which ports should be opened
+	'also, should we try to establish an outgoing connection?
+	'finally, decide about the state of DTR
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		decide_on_ser_enabled(f)
+		decide_on_sock_connect(f)
+		sock_connection_holdoff_tmr(f)=0
+		ser.num=f
+		if ser.rtsmap<>PL_IO_NULL then
+			io.num=ser.rtsmap
+			io.enabled=YES
+		end if
+		if dtr_mapping(f)<>PL_IO_NULL then
+			io.num=dtr_mapping(f)
+			io.enabled=YES
+		end if
+		if param_dt(f)=NO then
+			io.state=param_ds(f)
+		else
+			io.state=LOW 'no connection
+		end if
+	next f
+
+	'initialize notification variable
+	
+	for f=0 to MAX_NUM_SERIAL_PORTS-1
+		most_resent_notif_dest_ip(f)=""
+		most_resent_notif_dest_port(f)=0
+		io_state_changed(f)=0
+		dsr_state_curr(f)=0
+		dsr_state_prev(f)=0
+		dtr_state_curr(f)=0
+		dtr_state_prev(f)=0
+		cts_state_curr(f)=0
+		cts_state_prev(f)=0
+		rts_state_curr(f)=0
+		rts_state_prev(f)=0
+	next f
+
+	sock.inconenabledmaster=YES
+
+	#if POWER_SWITCH
+		if val(setting_get("PS",0))<>0 then
+			io.num=PL_IO_NUM_8_PWROUT
+			io.enabled=YES
+			io.state=HIGH
+		end if
+	#endif
+
+end sub

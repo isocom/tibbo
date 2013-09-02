@@ -1,0 +1,158 @@
+'***********************************************************************************************************
+'			THIS COMMON LIBRARY CONTAINS USEFULL ROUTINES AND FUNCTIONS
+'***********************************************************************************************************
+'***********************************************************************************************************
+
+include "common.tbh"
+
+'System Wide 1/10 second counter, staring from 0 on powerUP
+dim sysTimeCounter as long = 0
+dim sysDeviceLock as byte = 0
+
+public sub lockDevice
+  sysDeviceLock = sysDeviceLock + 1
+end sub
+
+public sub unlockDevice
+  sysDeviceLock = sysDeviceLock - 1
+end sub
+
+public function isDeviceLocked as boolean
+  if sysDeviceLock > 0 then isDeviceLocked = true else isDeviceLocked = false
+end function
+
+public function commonBool2Str(b as boolean) as string
+  if b then
+    commonBool2Str = "True"
+  else
+    commonBool2Str = "False"
+  end if
+end function
+
+public function commonBool2Str1(b as boolean) as string
+  if b then
+    commonBool2Str1 = "T"
+  else
+    commonBool2Str1 = "F"
+  end if
+end function
+
+public function token(s as string, n as byte, d as char) as string
+  dim f as byte
+  if n = 0 then f = 0 else f = instr(1, s, chr(d), n)
+
+  dim t as byte = instr(1, s, chr(d), n+1)
+
+  token = mid(s, f+1, t-f-1)
+end function
+
+public function reverse2(s as string) as string
+  reverse2 = ""
+  dim i as byte
+  for i = len(s) to 2 step -2
+    reverse2 = reverse2 + mid(s, i-1, 1) + mid(s, i, 1)
+  next
+end function
+
+
+public function msbToLong(s as string) as long
+  dim l1 as long = 0
+  l1 = asc(mid(s, 1, 1))
+  l1 = l1*256
+  l1 = l1*256
+  l1 = l1*256
+
+  dim l2 as long = 0
+  l2 = asc(mid(s, 2, 1))
+  l2 = l2*256
+  l2 = l2*256
+
+  dim l3 as long = 0
+  l3  = asc(mid(s, 3, 1))
+  l3 = l3*256
+
+  dim l4 as long = 0
+  l4  = asc(mid(s, 4, 1))
+  msbToLong = l1 + l2 + l3 + l4
+  'stare oblicznenie - niestety nieprawid³owo interpretuj¹ce liczby mniejsze ni¿ MINUS 32768
+  'msbToLong = asc(mid(s, 4, 1)) + asc(mid(s, 3, 1))*256 + asc(mid(s, 2, 1))*256*256 + asc(mid(s, 1, 1))*256*256*256
+end function
+
+public function commonStringTrim(byref s as string, terminator as byte) as string
+  dim p as byte = instr(1, s, chr(terminator), 1)
+  if p>0 then
+    commonStringTrim = left(s, p-1)
+  else
+    commonStringTrim = s
+  end if
+end function
+
+public sub commonStringEnlarge(byref s as string, l as byte, c as char)
+  while len(s) < l
+    s = s + chr(c)
+  wend
+end sub
+
+public sub commonReplaceChr(byref s as string, a as string, b as string)
+	dim pos as byte
+	dim temp as string
+	pos = instr(1,s,a,1)
+	while pos > 0 
+		temp = right(s,len(s)-pos-len(a)+1)
+		s = left(s,pos-1)+b+temp
+		pos = instr(pos+1,s,a,1)
+	wend
+end sub
+
+public sub commonSleep(time as byte, allowEvents as boolean)
+'time to sleep in seconds
+  dim b as byte
+  dim w as dword
+  for b = time to 1 step -1
+    w = sys.timercount
+    while sys.timercount-w < 2
+      if allowEvents then doevents
+    wend	
+  next b
+end sub
+
+public sub commonSleepNoEvents(time as byte)
+'time to sleep in seconds
+  dim b as byte
+  dim w as dword
+  for b = time to 1 step -1
+    w = sys.timercount
+    while sys.timercount-w < 2
+    wend	
+  next b
+end sub
+
+public function commonWordHi(w as word) as byte
+  commonWordHi = w / 256
+end function
+
+public function commonWordLo(w as word) as byte
+  commonWordLo = w mod 256
+end function
+
+public function commonWordFromBES(byref s as string) as word
+  dim w as word = 0
+  w = w + asc(mid(s, 1, 1)) * 256
+  w = w + asc(mid(s, 2, 1))
+  commonWordFromBES = w
+end function
+
+public function commonWordFromLES(byref s as string) as word
+  dim w as word = 0
+  w = w + asc(mid(s, 1, 1))
+  w = w + asc(mid(s, 2, 1)) * 256
+  commonWordFromLES = w
+end function
+
+public function commonWordToBES(w as word) as string(2)
+  commonWordToBES = chr(commonWordHi(w)) + chr(commonWordLo(w))
+end function
+
+public function commonWordToLES(w as word) as string(2)
+  commonWordToLES = chr(commonWordLo(w)) + chr(commonWordHi(w))
+end function

@@ -1,0 +1,65 @@
+include "global.tbh"
+
+const CR_LF = chr(13)+chr(10)
+const CR_LF_CR_LF = CR_LF+CR_LF
+
+dim gae_socket_num as byte = 255
+
+'---------------------------------------------------------------------------------------
+'initialize DNS connection, and set the default value
+sub gae_init
+  gae_socket_num = sock_get("GAE")
+  sock.num = gae_socket_num
+
+  sock.protocol = PL_SOCK_PROTOCOL_TCP
+  sock.inconmode = PL_SOCK_INCONMODE_NONE
+  sock.reconmode=PL_SOCK_RECONMODE_0
+  sock.inbandcommands = YES
+  sock.escchar = asc("~")
+  sock.endchar = asc("`")
+  
+  sock.cmdbuffrq(1)
+  sock.rplbuffrq(1)
+  sock.txbuffrq(2)
+  sock.tx2buffrq(1)
+  sock.rxbuffrq(4)
+  sys.buffalloc
+  
+  sock.targetip = gae_get_server_ip
+  sock.targetport = 80
+  sock.connect
+end sub
+
+sub gae_send(byref s as string)
+  sock.num = gae_socket_num
+  sock.setdata("GET /tr610" + s + " HTTP/1.1")
+  sock.setdata(CR_LF)
+  sock.setdata("Host: natanedwin.appspot.com")
+  sock.setdata(CR_LF)
+  sock.setdata(CR_LF) 'empty line - end of request
+  sock.send
+end sub
+
+sub gae_proc_data
+  if sock.num <> gae_socket_num then exit sub
+  dim s as string(32) = sock.getdata(32)
+end sub
+
+sub gae_send_hello1
+  dim s as string = "?cmd=Hello1&sn=" + device_getTibboSerialNumber
+  gae_send(s)
+end sub
+
+sub gae_send_heart_beat1
+  dim s as string = "?cmd=HeartBeat1&sn=" + device_getTibboSerialNumber
+  gae_send(s)
+end sub
+
+sub gae_send_card_detected1(byref card_sn as string, deviceMode as Mode)
+  dim s as string = "?cmd=CardDetected1&sn=" + device_getTibboSerialNumber + "&cn=" + card_sn
+  if deviceMode = In then s = s + "&mode=In"
+  if deviceMode = Out then s = s + "&mode=Out"
+  if deviceMode = TempIn then s = s + "&mode=TempIn"
+  if deviceMode = TempOut then s = s + "&mode=TempOut"
+  gae_send(s)
+end sub

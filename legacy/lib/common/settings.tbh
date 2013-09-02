@@ -1,0 +1,54 @@
+const MAX_NUM_SETTINGS=43
+const MAX_SETTING_NAME_LEN=2
+
+'This is a clean length that does not take into the account any additional service data that has
+'to be saved together with the setting. That is, when you do s=setting_get(), you receive a string value.
+'This constant refers to the maximum length of such string that you need in your project.
+'Choosing a smaller value helps you save RAM
+const MAX_SETTING_VALUE_LEN=128
+
+enum en_stg_rdwr
+	EN_STG_GET,			'Read operation
+	EN_STG_SET			'Write operation
+end enum
+
+'Status codes for setting-related operations
+enum en_stg_status	
+	EN_STG_STATUS_OK,				'Operation completed successfully
+	EN_STG_STATUS_UNKNOWN,			'Unknown setting or invalid setting number
+	EN_STG_STATUS_INVALID_INDEX,	'Invalid index (out-of-range)
+	EN_STG_STATUS_FAILURE,			'Read failure (checksum error) or write failure (EEPROM trouble)
+	EN_STG_STATUS_INVALID			'Invalid setting value
+end enum
+
+type sdr_type
+	name as string(MAX_SETTING_NAME_LEN) 'name
+	stype as byte
+	members as byte
+	p1 as word
+	p2 as word
+	ini as byte
+	nvaddr as word
+	romaddr_def as word
+	member_size as byte
+	setting_size as byte
+	status as en_stg_status
+end type
+
+declare function settingsHasOTP as boolean
+declare function settingsGetSerialNumber as string(6)
+declare function settingsGetOTPAsset as string(50)
+
+declare function settingsGetSignature as string
+declare function settingsInit(byref signature as string) as en_stg_status
+declare function settingsRestoreDefaults(init_field_override as no_yes) as en_stg_status
+declare function settingsGet(byref stg_name as string, index as byte) as string
+declare sub settingsSet(byref stg_name as string, index as byte, byref stg_value as string) 
+
+declare function setting_sg(byref stg_name as string,index as byte,byref stg_value as string,op as en_stg_rdwr) as en_stg_status
+declare function setting_get_def(byref stg_name as string,index as byte,byref def_value as string) as en_stg_status
+declare function setting_get_num_members(byref stg_name as string, byref num_members as byte) as en_stg_status
+declare function setting_find(byref stg_name as string(2)) as byte
+declare function setting_member_restore_def(byref stg_name as string, index as byte) as en_stg_status
+
+declare sdr(MAX_NUM_SETTINGS) as sdr_type

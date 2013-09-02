@@ -1,0 +1,61 @@
+include "../../lib/common/settings.tbh"
+include "../../lib/em500/em500setup.tbh"
+
+include "global.tbh"
+
+sub on_sys_init()
+  pat.play("GBR-~***",PL_PAT_CANINT)
+  settingsInit("TTD-0016-02r00XX")
+  EM500DeviceInit(val(settingsGet("DH",0)), settingsGet("IP",0), settingsGet("NM",0), settingsGet("GI",0))
+  pat.play("",PL_PAT_CANINT)
+
+  ser.num = 0
+  ser.enabled = NO
+  ser.baudrate = ser.div9600
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES
+  
+  sock.num = 0
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+  sock.localportlist = "1001"
+  sock.targetip = settingsGet("BP",0)
+  sock.targetport = "1001"
+end sub
+
+sub on_sock_data_arrival
+  if sock.num = 0 then
+    ser.num = 0
+    ser.setdata(sock.getdata(200))
+	ser.send
+  end if
+end sub
+
+dim s as string = ""
+
+sub on_ser_data_arrival
+  s = s + ser.getdata(ser.rxlen)
+  if len(s) > 200 then s = ""
+  if asc(s) <> &hCA then s = ""
+  if len(s) > 6 then
+    dim l as byte = asc(mid(s, 6, 1))
+	if l = len(s) then
+	  sock.num = 0
+	  sock.setdata(s)
+	  sock.send
+	  s = ""
+	end if
+  end if
+end sub

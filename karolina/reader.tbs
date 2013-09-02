@@ -1,0 +1,52 @@
+include "global.tbh"
+
+const READER_PORT_NUM = 1
+const MAX_RFID_SN_LEN = 14
+const READER_PORT_BR = 9600
+const STX=2
+const ETX=3
+const CR=13
+
+function reader_reverse2(s as string) as string
+  reader_reverse2 = ""
+  dim i as byte
+  for i = len(s) to 2 step -2
+    reader_reverse2 = reader_reverse2 + mid(s, i-1, 1) + mid(s, i, 1)
+  next
+end function
+
+dim readerBuffer as string(MAX_RFID_SN_LEN*3)
+
+sub readerInit
+'Initialize the com port for reader
+  ser.num = READER_PORT_NUM
+  ser.enabled = NO
+  ser.baudrate = ser.div9600/(READER_PORT_BR/9600)
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_NONE
+  ser.bits = PL_SER_BB_8	
+  if ser.rxbuffsize = 0 then
+    ser.rxbuffrq(1)
+    sys.buffalloc
+  end if
+  ser.enabled = YES
+end sub
+
+sub readerProcess
+  if ser.num <> READER_PORT_NUM then exit sub
+
+  dim readerLastCardSN as string(MAX_RFID_SN_LEN)
+  dim Pos1, Pos2 as byte
+  dim s as string
+  s = ser.getdata(255)
+  readerBuffer = readerBuffer + s	
+  Pos1 = instr(1,readerBuffer,chr(STX),1)	
+  Pos2 = instr(1,readerBuffer,chr(CR),1)
+  if Pos2 > 0 and Pos1 > 0 and Pos2 > Pos1 then 
+    readerBuffer = mid(readerBuffer,pos1+1,pos2-pos1-1)
+	readerLastCardSN = reader_reverse2(readerBuffer)
+	callback_new_card_detected(readerLastCardSN)
+    readerBuffer = ""
+  end if
+  if len(readerBuffer) > MAX_RFID_SN_LEN*2 then readerBuffer = ""
+end sub

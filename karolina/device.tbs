@@ -1,0 +1,193 @@
+include "global.tbh"
+
+' Global variables
+'=============================================================
+
+' Tr610 initialization
+'=============================================================
+dim device_tr610_initialized as boolean = false
+sub device_tr610_init
+  if device_tr610_initialized then exit sub
+
+  ' init display
+  if device_isInit1pass = NotStarted then
+    displayInit(YES)
+    exit sub
+  end if
+  if device_isInit1pass = Running then exit sub
+  
+  ' init network - dhcp
+  if device_isInit2pass = NotStarted then
+    dhcp_start(PL_SOCK_INTERFACE_NET,"","")
+    exit sub
+  end if
+  if device_isInit2pass = Running then exit sub
+  
+  ' init Google DNS service
+  if device_isInit3pass = NotStarted then
+      dns_init
+    exit sub
+  end if
+  if device_isInit3pass = Running then exit sub
+  
+  ' send google hi
+  if device_isInit4pass = NotStarted then
+    gae_init
+	gae_send_hello1
+    exit sub
+  end if
+  if device_isInit4pass = Running then exit sub
+
+  device_watch_dog_reset1
+  readerInit
+  keypadInit(YES)
+  device_tr610_initialized = true
+  displayShowClock(true)
+end sub
+
+' Initialization statuses
+'=============================================================
+' Display
+dim device_init1pass as ThreeState = NotStarted
+function device_isInit1pass as ThreeState
+  device_isInit1pass = device_init1pass
+  if device_init1pass = NotStarted then device_init1pass = Running
+end function
+sub device_markInit1pass
+  device_init1pass = Done
+  displayPrint(LCD_FIX_FONT, "1. Wyswietlacz OK", 5, 25)
+end sub
+
+' Network
+dim device_init2pass as ThreeState = NotStarted
+function device_isInit2pass as ThreeState
+  device_isInit2pass = device_init2pass
+  if device_init2pass = NotStarted then device_init2pass = Running
+end function
+sub device_markInit2pass
+  device_init2pass = Done
+  displayPrint(LCD_FIX_FONT, "2. DHCP i siec OK", 5, 25)
+  displayPrint(LCD_FIX_FONT, "IP: " + net.ip, 5, 35)
+  displayPrint(LCD_FIX_FONT, "NM: " + net.netmask, 5, 45)
+  displayPrint(LCD_FIX_FONT, "GW: " + net.gatewayip, 5, 55)
+end sub
+
+' GAE DNS
+dim device_init3pass as ThreeState = NotStarted
+function device_isInit3pass as ThreeState
+  device_isInit3pass = device_init3pass
+  if device_init3pass = NotStarted then device_init3pass = Running
+end function
+sub device_markInit3pass
+  device_init3pass = Done
+  displayPrint(LCD_FIX_FONT, "3. DNS for GAE OK", 5, 25)
+  displayPrint(LCD_FIX_FONT, "GAE " + gae_get_server_ip, 5, 45)
+end sub
+
+' GAE HELLO
+dim device_init4pass as ThreeState = NotStarted
+function device_isInit4pass as ThreeState
+  device_isInit4pass = device_init4pass
+  if device_init4pass = NotStarted then device_init4pass = Running
+end function
+sub device_markInit4pass(byref gae_device_id as string)
+  device_init4pass = Done
+  displayPrint(LCD_FIX_FONT, "4. Hello with GAE OK", 5, 25)
+  displayPrint(LCD_FIX_FONT, "DID " + gae_device_id+"...", 5, 55)
+end sub
+
+' DEVICE SERIAL NUMBER STUFF
+'====================================================================
+function common_string2hex(byref src as string) as string
+  dim result as string = ""
+  dim i, a as byte
+  dim d as string(4)
+  
+  for i = 1 to len(src)
+    a = asc(mid(src, i, 1))
+    d = hex(a) '&H in front of data
+    d = mid(d,3,len(d)-2) 'remove &H, rest part is value
+	if len(d)=1 then d = "0"+d
+	
+    result = result + d
+  next i
+  common_string2hex = result
+end function
+
+dim device_tibboSerialNumber as string(32) = ""
+function device_getTibboSerialNumber as string
+  if len(device_tibboSerialNumber) = 32 then
+    device_getTibboSerialNumber = device_tibboSerialNumber
+    exit function
+  end if
+  dim unique as string
+  unique=sys.serialnum
+  unique=mid(unique,65,64)
+  
+  dim plaintext,crypted as string
+  plaintext=unique + "Bartek kocha Karoline"
+  crypted=md5(plaintext,"",MD5_FINISH,Len(plaintext))
+  
+  device_tibboSerialNumber = common_string2hex(crypted)
+  device_getTibboSerialNumber = device_tibboSerialNumber
+end function
+
+' WATCH DOG STUFF
+'====================================================================
+dim device_watch_dog_counter1 as dword = 1*60*2 ' one minute initial setting minutes counter
+sub device_watch_dog_reset1
+  device_watch_dog_counter1 = 1*30*2 'ping every 30 seconds
+end sub
+sub device_watch_dog
+  device_watch_dog_counter1 = device_watch_dog_counter1 - 1
+  if device_tr610_initialized and (device_watch_dog_counter1 = 15*2) then gae_send_heart_beat1
+  if device_watch_dog_counter1 < 10*2 then beep.play("*B", PL_BEEP_CANINT)
+  if device_watch_dog_counter1 = 0 then sys.reboot
+end sub
+
+' DHCP STUFF
+'====================================================================
+sub callback_dhcp_ok(renew as no_yes, interface as pl_sock_interfaces, byref ip as string, byref gateway_ip as string, byref netmask as string, lease_time as dword)
+'Callback procedure, informs of the successul procurement of configuration parameters from the DHCP server.
+  dim f as byte
+ 
+  #if NET_AVAILABLE
+    if interface=PL_SOCK_INTERFACE_NET then
+      if renew=YES and net.ip<>ip then
+        'this is a lease renewal and the DHCP server has issues new IP
+        'it is better to reboot than deal with the implications of the changed IP
+        sys.reboot
+      end if
+
+      if net.ip<>ip then
+        'no need to close sockets -- this is definitely NOT a renewal an the DHCP lib
+        'has already closed all socket connections on this interface prior to setting
+        'the IP to 0.0.0.0
+        net.ip=ip
+        net.gatewayip=gateway_ip
+        net.netmask=netmask
+		
+		beep.play("*B-*B-*B", PL_BEEP_CANINT)
+		device_markInit2pass
+      end if
+    end if
+  #endif
+end sub
+
+sub callback_dhcp_failure(interface as pl_sock_interfaces,failure_code as en_dhcp_status_codes)
+'Callback procedure, informs of the failure to procure configuration parameters from the DHCP server after DHCP_MAX_RETRIES.
+  sys.reboot
+end sub
+
+sub callback_dhcp_pre_clear_ip(interface as pl_sock_interfaces)
+'Callback procedure, informs of the fact that the IP address of the specified interface will be cleared to 0.0.0.0 and all socket connections
+'currently operating on this interface will be discarded.
+end sub
+
+sub callback_dhcp_pre_buffrq(required_buff_pages as byte)
+'Callback procedure, informs of the insufficient number of free buffer pages available for use by the library.
+end sub
+
+sub callback_dhcp_buff_released()
+'Callback procedure, informs of the release of buffer pages by the library.
+end sub

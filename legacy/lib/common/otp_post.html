@@ -1,0 +1,35 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD W3 HTML//EN">
+<HTML>
+<HEAD>
+<META HTTP-EQUIV="Expires" CONTENT="Tue, 01 Jan 1980 1:00:00 GMT">
+<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+<script type="text/javascript">
+function HomePage()
+{
+	window.top.location.replace("main.html")
+}
+</script>
+</HEAD>
+
+<body onload='
+  <?
+    include "global.tbh"
+    include "../../lib/common/html.tbh"
+    include "../../lib/common/settings.tbh"
+
+    dim dhcp as string = htmlGetHttpArgument(sock.httprqstring, "dhcp=")
+    dim ip as string = htmlGetHttpArgument(sock.httprqstring, "ip=")
+    dim nm as string = htmlGetHttpArgument(sock.httprqstring, "nm=")
+    dim gw as string = htmlGetHttpArgument(sock.httprqstring, "gw=")
+	
+	if dhcp = "yes" then settingsSet("DH", 0, 1)
+	if dhcp = "no"  then settingsSet("DH", 0, 0)
+	
+    settingsSet("IP", 0, ip)
+    settingsSet("NM", 0, nm)
+    settingsSet("GW", 0, gw)
+    htmlWrite("HomePage()")
+  ?>
+'>
+</body>
+</HTML>

@@ -1,0 +1,34 @@
+include "../common/dhcp.tbh"
+include "../common/common.tbh"
+include "../common/html.tbh"
+
+declare sub obtainIP(xip as string, xnm as string, xgw as string)
+
+public sub EM500DeviceInit(useDHCP as boolean, ip as string, nm as string, gw as string)
+  sys.onsystimerperiod = 10 'Set system timer resolution to 1/10 second
+
+  if useDHCP then
+    obtainIP(ip, nm, gw)
+  else
+    net.ip = ip
+    net.netmask = nm
+    net.gatewayip = gw
+  end if
+  htmlInit
+end sub
+
+sub obtainIP(xip as string, xnm as string, xgw as string)
+  dim dhcp_ip, dhcp_gateway, dhcp_netmask as string(16)
+  dim dhcp_lease_time as dword
+  dim dhcp_result as ok_ng
+  dhcp_result = dhcp_obtain(dhcp_ip, dhcp_gateway, dhcp_netmask, dhcp_lease_time, "EM-500")
+  if dhcp_result = OK then
+    net.ip=dhcp_ip
+    net.netmask=dhcp_netmask
+    net.gatewayip=dhcp_gateway
+  else
+    net.ip=xip
+    net.netmask=xnm
+    net.gatewayip=xgw
+  end if
+end sub

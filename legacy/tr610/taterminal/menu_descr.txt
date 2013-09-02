@@ -1,0 +1,35 @@
+	Acc	Men	Item	Item				Item
+	lvl	lvl	type	String				Data
+>>	0	0	F	Setup			^
+>>	0	1	F	General			^	
+>>	0	2	N	Owner name				S,I,ON,,A,6,N	^
+>>	0	2	N	Device name				S,I,DN,,A,6,N	^
+>>	0	2	N	Password				S,I,PW,,B,6,N	^
+>>	0	2	N	Mounting				S,L,MM,0-Wall mount;1-Desktop;	^
+>>	0	1	F	Network			^
+>>	0	2	N	DHCP					S,L,DH,0-Disabled;1-Enabled;	^
+>>	0	2	N	IP address				S,I,IP,   .   .   .   ,D,12,N	^
+>>	0	2	N	Gateway IP				S,I,GI,   .   .   .   ,D,12,N	^
+>>	0	2	N	Netmask					S,I,NM,   .   .   .   ,D,12,N	^
+>>	0	1	F	AggreGate		^
+>>	0	2	N	Enable/Disable			S,L,AR,0-Disabled;1-Enabled;	^
+>>	0	2	N	Conn. timeout			S,I,CT,,D,3,N	^
+>>	0	2	N	Server IP				S,I,DI,   .   .   .   ,D,12,N	^
+>>	0	2	N	Server Port				S,I,DP,,D,5,N	^
+>>	0	1	F	Date/Time		^
+>>	0	2	F	Auto sync.		^
+>>	0	3	N	Enable/Disable			S,L,TF,0-Disabled;1-Enabled;	^
+>>	0	3	N	Sync time				S,I,TC,  :  ,D,4,N	^
+>>	0	2	N	Time server				S,I,TS,   .   .   .   ,D,12,N	^
+>>	0	2	N	Sync now				C,K	^
+>>	0	2	N	Time zone				S,L,TZ,0--12;1--11;2--10;3--9;4--8;5--7;6--6;7--5;8--4:30;9--4;10--3;11--3:30;12--2;13--1;14-0;15-+1;16-+2;17-+3;18-+3:30;19-+4;20-+4:30;21-+5;22-+5:30;23-+5:45;24-+6;25-+6:30;26-+7;27-+8;28-+9;29-+9:30;30-+10;31-+11;32-+12;33-+13;	^
+>>	0	2	N	Set date				S,I,TD,  /  /    ,D,8,N	^
+>>	0	2	N	Set time				S,I,TT,  :  ,D,4,N	^
+>>	0	1	F	White list		^
+>>	0	2	N	Enable/Disable			S,L,WL,0-Disabled;1-Enabled;	^
+>>	0	2	N	Edit W/L				S,T,TBL_WL,I,ID,,B,8,N,I,NAME,,B,25,N	^
+>>	0	2	N	Clear W/L				C,D	^
+>>	1	0	N	Initialize				C,I	^
+>>	0	0	N	Reboot					C,E	^
+>>	1	0	N	Clear log				C,J	^
+

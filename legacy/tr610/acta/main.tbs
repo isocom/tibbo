@@ -1,0 +1,61 @@
+include "global.tbh"
+
+include "../../lib/common/common.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+include "../../lib/ttsoft/barcode.tbh"
+
+'=============================================================
+dim normalState as boolean = false        'means after successfull initialization
+dim sysTimeCounter as long = 0            'System Wide 1/10 second counter, staring from 0 on powerUP
+'=============================================================
+
+
+sub on_sys_init
+'  storageInit
+  TR610DeviceInit(YES, false, "192.168.147.49", "255.255.255.0", "192.168.147.1")
+  barcodeInit
+'  relaySwap(storageGetRelaySwap)
+'  udpserverInit
+
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "TTD-0006-04 AcTa", 5, 05)
+  'displayPrint(LCD_STD_FONT, "SKU: " + storageGetSignature, 5, 15)
+  'displayPrint(LCD_FIX_FONT, "SNR: " + storageGetSerialNumber, 5, 35)
+  displayPrint(LCD_FIX_FONT, "IP : " + net.ip, 5, 45)
+  'displayPrint(LCD_FIX_FONT, "TIP: " + storageGetTargetIP, 5, 55)
+
+  commonSleep(5)
+  displayShowClock(true)
+  normalState = true  
+end sub
+
+sub on_sys_timer
+  if not normalState then exit sub
+
+  relayTimer
+  displayTimer
+  keypadTimer
+  'entertimeTimer
+  'udpserverTimer
+
+  sysTimeCounter = sysTimeCounter + 1
+  'if fsmStateTimeout >= 0 then fsmStateTimeout = fsmStateTimeout - 1
+  'if fsmStateTimeout = 0 then changeFSMState(Iddle)
+end sub
+
+sub on_ser_data_arrival
+  select case ser.num
+    case READER_PORT_NUM:
+      readerProcess
+	case BARCODE_PORT_NUM:
+	  barcodeProcess
+  end select
+
+  if barcodeIsNewCodeReaded then
+    displayPrintMsg("*"+barcodeLastCode+"*", 0, 0, lcd.width, lcd.height, YES)
+  end if
+end sub

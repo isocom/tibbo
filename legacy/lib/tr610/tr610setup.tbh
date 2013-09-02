@@ -1,0 +1,7 @@
+'
+'
+'This routine initializes TR610 device
+'
+const TR610_SERIAL_PORT_NUM = 0
+
+declare sub TR610DeviceInit(rotate as no_yes, useDHCP as boolean, ip as string, nm as string, gw as string)

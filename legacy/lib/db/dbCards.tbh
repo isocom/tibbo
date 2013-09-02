@@ -1,0 +1,15 @@
+type CardRecord
+  serialNumber as string(14) 'bytes 01-14 (14)
+  cardType as string(2)      'bytes 15-16 (2)
+  humanRef as word           'bytes 17-18 (2)
+  reserved as string(14)     'bytes 19-32 (14)
+end type
+
+declare sub dbCardsInit
+declare function dbCardsRead as CardRecord
+declare sub dbCardsAdd(card as CardRecord)
+
+declare function dbCardsFindBySerialNumber(sn as string) as word
+
+declare sub dbCardsSave
+declare sub dbCardsUpdate

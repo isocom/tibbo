@@ -1,0 +1,8 @@
+Setting	Setting											Setting 
+Name	String											Data
+
+>>ON	Owner name (AggreGate User Account)				S,I,16	^
+>>DN	Device name (AggreGate Device Account) 			S,I,16	^
+>>PW	Password										S,I,6	^
+>>MM	Mounting method									B,L,0-Wall Mount;1-Desktop;	^
+>>WL	White list										B,L,0-Disabled;1-Enabled;	^

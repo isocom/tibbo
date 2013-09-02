@@ -1,0 +1,24 @@
+include "../../lib/common/html.tbh"
+include "../../lib/common/settings.tbh"
+
+public function password_verify as ok_ng
+'Check the password.  If the password is correct, proceed to the next page (home.html), otherwise, redirect back to index page
+	
+	dim pw as string(16)
+	dim entered_pw as string(16)
+	dim stg_status as en_stg_status
+	dim i as byte
+
+	entered_pw = htmlGetHttpArgument(sock.httprqstring,"pw=")
+	pw = settingsGet("PW",0)
+
+	'here, the function checks an http argument call "logout" if it is equal to yes, meaning instead of 
+	'login, the user is logging out.
+
+	if entered_pw = pw then
+		password_verify = OK
+	else
+		'invalid password
+		password_verify=NG
+	end if
+end function

@@ -1,0 +1,19 @@
+declare sub dbDropDatabase
+declare sub dbInitTable(byref tableName as string, recordSize as byte, recordCount as dword)
+
+declare function dbGetTablesCount as byte
+declare function dbGetCurrentTableIndex as byte
+declare function dbDefTableName(i as byte) as string(8)
+declare function dbDefRecordSize(i as byte) as byte
+declare function dbTableSize(i as byte) as dword
+declare function dbGetFreeRecords(i as byte) as word
+declare function dbGetTotalRecords(i as byte) as word
+
+declare function dbUse(byref tableName as string) as boolean
+declare sub dbPurgeTable
+declare function dbHasNext as boolean
+declare function dbGoTo(idx as word) as boolean
+declare function dbFind(byref s as string) as boolean
+declare function dbCurrentPos as word
+declare function dbCurrentRecord as string
+declare function dbAdd(byref record as string) as word

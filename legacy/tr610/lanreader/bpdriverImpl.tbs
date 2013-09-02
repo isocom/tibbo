@@ -1,0 +1,62 @@
+include "../../lib/common/common.tbh"
+include "../../lib/ttsoft/bpdriver.tbh"
+include "../../lib/tr610/display.tbh"
+include "global.tbh"
+
+declare sub processDisplayMsg(s as string)
+declare sub processDisplayText(font as byte, aligment as byte, s as string)
+declare sub processSelectableList(byref datagram as string)
+declare sub processLogoOverride(byref datagram as string)
+
+public sub on_BPDriver_Datagram(byref datagram as string)
+  dim command as string = token(datagram, 0, TAB)
+  if command = "DM" then processDisplayMsg(token(datagram, 1, TAB))
+  if command = "DT" then processDisplayText(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), token(datagram, 3, TAB))
+  if command = "X1" then changeFSMState(EnteringTime)
+  if command = "X2" then processSelectableList(datagram)
+  if command = "LO" then processLogoOverride(datagram)
+end sub
+
+public sub bpdSendTanTime(sn as string, time as word)
+  bpdriverSend("Y1" + chr(TAB) + sn + chr(TAB) + str(time) + chr(TAB))
+end sub
+
+sub processDisplayMsg(s as string)
+  globalString1 = s
+  changeFSMState(DiplayingMsg)
+end sub
+
+sub processDisplayText(font as byte, aligment as byte, s as string)
+  globalString1 = s
+  globalByte1 = font
+  globalByte2 = aligment
+  changeFSMState(DiplayingTxt)
+end sub
+
+sub processSelectableList(byref datagram as string)
+  dim command as string = token(datagram, 1, TAB)
+  if command = "C" then
+    sellistSetSize(val(token(datagram, 2, TAB)))
+	bpdriverSend("Y2" + chr(TAB) + "C" + chr(TAB))
+  end if
+  if command = "S" then
+    sellistSetEntry(val(token(datagram, 2, TAB)), token(datagram, 3, TAB), val(token(datagram, 4, TAB)))
+	bpdriverSend("Y2" + chr(TAB) + "S" + chr(TAB))
+  end if
+  if command = "START" then
+    changeFSMState(SelectableList)
+  end if
+end sub
+
+sub processLogoOverride(byref datagram as string)
+  if token(datagram, 1, TAB) = "F" then
+    displayOverrideLogo(false, "", "", "")
+    exit sub
+  end if
+  displayOverrideLogo(true, token(datagram, 2, TAB), token(datagram, 3, TAB), token(datagram, 4, TAB))
+  changeFSMState(Iddle)
+end sub
+
+public sub bpdSendUserSelection(sn as string, d as string)
+  bpdriverSend("Y2" + chr(TAB) + "R" + chr(TAB) + sn + chr(TAB) + d)
+end sub

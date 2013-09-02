@@ -1,0 +1,131 @@
+include "global.tbh"
+
+include "../../lib/common/common.tbh"
+include "../../lib/common/settings.tbh"
+include "../../lib/db/db.tbh"
+include "../../lib/db/dbHumans.tbh"
+include "../../lib/db/dbCards.tbh"
+include "../../lib/db/dbCardLog.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+include "../../lib/ttsoft/bpdriver.tbh"
+
+'=============================================================
+dim normalState as boolean = false 'means after successfull initialization
+dim button_timer as byte           'track how long button was keept pressed
+'=============================================================
+
+sub on_sys_init
+  settingsInit("TTD-0006-07r0010")
+  TR610DeviceInit(val(settingsGet("RS",0)), val(settingsGet("DH",0)), settingsGet("IP",0), settingsGet("NM",0), settingsGet("GW",0))
+  relaySwap(val(settingsGet("SR",0)))
+
+  dbHumansInit
+  dbCardsInit
+  dbCardLogInit
+
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "TTD-0006-07 Kids", 5, 05)
+  displayPrint(LCD_STD_FONT, "SKU: " + settingsGetSignature, 5, 15)
+  displayPrint(LCD_FIX_FONT, "SNR: " + settingsGetSerialNumber, 5, 35)
+  displayPrint(LCD_FIX_FONT, "IP : " + net.ip, 5, 45)
+  displayPrint(LCD_FIX_FONT, "TIP: " + settingsGet("BP",0), 5, 55)
+
+  bpdriverInit(0, 1, settingsGet("BP",0), "TTD-0006-07", settingsGetSerialNumber,
+    settingsGetSignature, settingsGet("LC", 0), settingsGetOTPAsset)
+  commonSleep(5, false)
+  displayShowClock(true)
+  normalState = true  
+end sub
+
+sub on_sys_timer
+  if button.pressed then
+    button_timer = button_timer + 1
+    if button_timer = 6 then pat.play("R-G~*",PL_PAT_CANINT)
+  end if
+  if not normalState then exit sub
+  if sysTimeCounter mod 80 = 30 then displayOverrideLogo(true, "Sam sprawdz naleznosc", "w Internecie wejdz na", " edziecko.isocom.eu")
+  if sysTimeCounter mod 80 = 70 then displayOverrideLogo(false, "", "", "")
+
+  relayTimer
+  displayTimer
+  keypadTimer
+  bpdriverTimer
+
+  sysTimeCounter = sysTimeCounter + 1
+end sub
+
+sub on_button_pressed()
+  button_timer = 0 
+end sub
+
+sub on_button_released()
+  if button_timer > 30 then
+    if fd.format((fd.availableflashspace/4)*3,10)<>PL_FD_STATUS_OK then
+      displayPrint(LCD_STD_FONT, "Flash format error: " + str(fd.laststatus), 5, 5) 
+	  sys.halt
+    end if
+	displayPrintMsg("Flash drive has been formated. Will reboot now", 0, 0, lcd.width, lcd.height, YES)
+	sys.reboot
+  end if
+end sub
+
+'======== OBSLUGA TRANSMISJI PRZYCHODZ¥CEJ Z LAN
+sub on_sock_data_arrival
+  if sock.num = bpdriverSocketNumber then bpdriverReadDatagram
+  if sock.num = bpdriverUSASocketNumber then bpdriverReadUSA
+end sub
+
+'======== OBSLUGA PORTU SZEREGOWEGO
+sub on_ser_data_arrival
+  select case ser.num
+    case READER_PORT_NUM:
+      readerProcess
+    case TR610_SERIAL_PORT_NUM:
+	  ser.getdata(255)
+  end select
+
+  if readerIsNewCardSNDetected then
+    if isDeviceLocked then exit sub
+    dim cardRef as word = dbCardsFindBySerialNumber(readerLastCardSN)
+	if cardRef > 0 then
+	  dim card as CardRecord = dbCardsRead
+	  
+      dim entry as CardLogRecord
+	  dim d, m as word
+      dim s as byte
+	  rtc.getdata(d, m, s)
+	  
+	  entry.cardRef = cardRef
+      entry.dayCount = d
+      entry.minCount = m
+      entry.seconds = s
+      
+	  dim logPos as word = dbCardLogAdd(entry)
+	  dim logRem as word = dbGetFreeRecords(dbGetCurrentTableIndex)
+	  dim logCap as word = dbGetTotalRecords(dbGetCurrentTableIndex)
+	  
+	  dbUse("Humans")
+	  if dbGoto(card.humanRef) then
+	    dim human as HumanRecord = dbHumansRead
+        displayMessage("Karta: " + readerLastCardSN + "`" + str(logPos) + "/" + str(logRem) + "/" + str(logCap) + "``Dziecko:`" + human.name)
+	  end if
+	  beep.play("B", PL_BEEP_CANINT)
+	else
+	  displayMessage("Nieznana karta: " + readerLastCardSN)
+	  beep.play("B-B-B-B-", PL_BEEP_CANINT)
+	  bpdriverSendCardDetected(readerLastCardSN)
+	end if
+  end if
+end sub
+
+'======== OBSLUGA KLAWIATURY =================================
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+  dim key as KeypadKeyEnum
+  key = keypadOnKey(key_event, key_code)
+
+  if key_event = PL_KP_EVENT_PRESSED then bpdriverSendKey(keypadToStr(key))
+end sub

@@ -1,0 +1,19 @@
+include "../../lib/common/html.tbh"
+
+public sub debugShowPriceList(byref pricelist as string)
+  htmlWrite("<li> Bajtów:" + str(len(pricelist)) + ". ")
+  if asc(pricelist) = 7 then htmlWrite("Aktywny ") else htmlWrite("NieAkt ")
+  htmlWrite("Nr:" + str(asc(mid(pricelist, 2, 1))) + " ")
+  htmlWrite("AKT:" + str(asc(mid(pricelist, 3, 1))) + " ")
+  dim i as byte
+  dim t, r1, r2 as word
+  for i = 4 to 28 step 6
+    if i>len(pricelist) then exit sub
+    t = 256*asc(mid(pricelist, i+0, 1)) + asc(mid(pricelist, i+1, 1))
+    r1= 256*asc(mid(pricelist, i+2, 1)) + asc(mid(pricelist, i+3, 1))
+    r2= 256*asc(mid(pricelist, i+4, 1)) + asc(mid(pricelist, i+5, 1))
+    htmlWrite("("+str(t)+",")
+    htmlWrite(str(r1)+",")
+    htmlWrite(str(r2)+")")
+  next i
+end sub

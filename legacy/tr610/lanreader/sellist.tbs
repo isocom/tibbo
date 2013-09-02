@@ -1,0 +1,105 @@
+include "global.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+
+const LIST_ELEMENT_NAME_MAX_LENGTH = 15
+const LIST_MAX_ELEMENTS = 32
+const LIST_MAX_VISIBLE_ITEMS = 8
+dim sellistElementCount as byte = 0
+dim sellistCurPos as char
+dim sellistOffset as char
+
+type ListElement
+  name as string(LIST_ELEMENT_NAME_MAX_LENGTH)
+  count as char
+end type
+
+dim sellistElements as ListElement(LIST_MAX_ELEMENTS)
+
+declare sub displayMenu
+
+public sub sellistSetSize(size as byte)
+  sellistElementCount = size
+end sub
+
+public sub sellistSetEntry(idx as byte, byref name as string, count as byte)
+  sellistElements(idx).count = count
+  sellistElements(idx).name = name
+end sub
+
+public sub sellistStart
+  sellistCurPos = 0
+  sellistOffset = 0
+  displayClearAll
+
+  displayButton(KP_BUTTON_LU, BMP_ENTER_XOFFSET)
+  displayButton(KP_BUTTON_LD, BMP_CANCEL_XOFFSET)
+  displayButton(KP_BUTTON_RU, BMP_UP_XOFFSET)
+  displayButton(KP_BUTTON_RD, BMP_DOWN_XOFFSET)
+  displayButtonFrame
+  
+  keypadLEDLit(KP_BUTTON_LU, true)
+  keypadLEDLit(KP_BUTTON_LD, true)
+  keypadLEDLit(KP_BUTTON_RU, true)
+  keypadLEDLit(KP_BUTTON_RD, true)
+  
+  displayMenu
+end sub
+
+sub displayMenu
+  dim i as byte
+  dim s as string(15)
+  
+  for i = sellistOffset to sellistOffset + LIST_MAX_VISIBLE_ITEMS - 1
+    if i>= sellistElementCount then exit sub
+    if i = sellistCurPos then displayInverse
+	if sellistElements(i).count = 0 then s = "  " else s = "* "
+	s = s + " " + sellistElements(i).name
+	commonStringEnlarge(s, 15, 32)
+    displayPrint(LCD_FIX_FONT, s, 20, (i-sellistOffset)*8)
+    'displayPrint(LCD_FIX_FONT, sellistElements(i).name, 36, i*8)
+    if i = sellistCurPos then displayInverse
+  next i  
+end sub
+
+sub sellistScroll(inc as char)
+  sellistCurPos = sellistCurPos + inc
+  if sellistCurPos < 0 then sellistCurPos = 0
+  if sellistCurPos >= sellistElementCount then sellistCurPos = sellistElementCount - 1
+
+  if sellistOffset > sellistCurPos then sellistOffset = sellistCurPos
+  if sellistOffset + LIST_MAX_VISIBLE_ITEMS <= sellistCurPos then sellistOffset = sellistCurPos - LIST_MAX_VISIBLE_ITEMS + 1
+  'sellistOffset = sellistOffset + inc  
+  'LIST_MAX_VISIBLE_ITEMS
+  'if sellistOffset
+end sub
+
+sub sellistIncrement(inc as char)
+  dim c as char = sellistElements(sellistCurPos).count
+  'c = c + inc
+  'if c < 0 then c = 0
+  'if c > 9 then c = 9
+  sellistElements(sellistCurPos).count = inc
+end sub
+
+public sub sellistKP(keyEvent as pl_kp_event_codes, keyCode as byte)
+  dim key as KeypadKeyEnum = keypadKeyDecode(keyCode)
+  if key = KP_BUTTON_RU and keyEvent = PL_KP_EVENT_PRESSED then sellistScroll(-1)
+  if key = KP_BUTTON_RD and keyEvent = PL_KP_EVENT_PRESSED then sellistScroll(1)
+  if key = KP_BUTTON_LU and keyEvent = PL_KP_EVENT_PRESSED then sellistIncrement(1)
+  if key = KP_BUTTON_LD and keyEvent = PL_KP_EVENT_PRESSED then sellistIncrement(0)
+  displayMenu
+  fsmStateTimeout = 200
+end sub
+
+public function sellistResult as string
+  dim s as string = ""
+  dim i as byte
+  for i = 0 to sellistElementCount - 1
+    s = s + str(sellistElements(i).count) + chr(TAB)
+  next i
+  sellistResult = s
+end function

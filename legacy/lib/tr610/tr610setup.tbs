@@ -1,0 +1,89 @@
+include "../common/dhcp.tbh"
+include "../common/common.tbh"
+include "../common/html.tbh"
+
+include "display.tbh"
+include "keypad.tbh"
+include "reader.tbh"
+include "relay.tbh"
+
+declare sub flashInit
+declare sub beeperInit
+declare sub obtainIP(xip as string, xnm as string, xgw as string)
+declare sub initWebServer
+
+public sub TR610DeviceInit(rotate as no_yes, useDHCP as boolean, ip as string, nm as string, gw as string)
+  'sys.onsystimerperiod = 10 'Set system timer resolution to 1/10 second
+
+  beeperInit
+  displayInit(rotate)
+  keypadInit(rotate)
+  flashInit
+  displayDrawTTSoftLogo
+
+  if useDHCP then
+    obtainIP(ip, nm, gw)
+  else
+    net.ip = ip
+    net.netmask = nm
+    net.gatewayip = gw
+  end if
+  displayPrint(LCD_FIX_FONT, "IP: " + net.ip, 5, 35)
+  displayPrint(LCD_FIX_FONT, "NM: " + net.netmask, 5, 45)
+  displayPrint(LCD_FIX_FONT, "GW: " + net.gatewayip, 5, 55)
+  commonSleep(5, false)
+
+  htmlInit
+  relayInit
+  readerInit
+  commonSleep(1, false)
+end sub
+
+sub flashInit
+  if fd.mount = PL_FD_STATUS_OK then
+    displayPrint(LCD_FIX_FONT, "Flash disk OK   *256", 5, 5) 
+    displayPrint(LCD_FIX_FONT, "Flash size: " + str(fd.availableflashspace), 5, 15)
+    displayPrint(LCD_FIX_FONT, "Total size: " + str(fd.totalsize), 5, 25)
+    displayPrint(LCD_FIX_FONT, "Capacity  : " + str(fd.capacity), 5, 35)
+    displayPrint(LCD_FIX_FONT, "Free space: " + str(fd.getfreespace), 5, 45)
+	displayPrint(LCD_FIX_FONT, "Files num : " + str(fd.getnumfiles), 5, 55)
+	commonSleep(5, false)
+  else
+    'format a disk to occupy 3/4th of available space and store at least 10 files
+    if fd.format((fd.availableflashspace/4)*3,10)<>PL_FD_STATUS_OK then
+      displayPrint(LCD_STD_FONT, "Flash format error: " + str(fd.laststatus), 5, 5) 
+	  sys.halt
+    end if
+	displayPrintMsg("Flash drive has been formated. Will reboot in 15 seconds", 0, 0, lcd.width, lcd.height, YES)
+	commonSleep(15, false)
+	sys.reboot
+  end if  
+  displayClearAll
+end sub
+
+sub beeperInit
+  ' default frequency for buzzer
+  beep.divider = 10000
+  beep.play("*B", PL_BEEP_CANINT)
+end sub
+
+sub obtainIP(xip as string, xnm as string, xgw as string)
+  displayPrint(LCD_STD_FONT, "DHCP probing for MAC:", 5, 35)
+  displayPrint(LCD_STD_FONT, net.mac, 5, 45)
+  'sleep(5, false)
+  dim dhcp_ip, dhcp_gateway, dhcp_netmask as string(16)
+  dim dhcp_lease_time as dword
+  dim dhcp_result as ok_ng
+  dhcp_result = dhcp_obtain(dhcp_ip, dhcp_gateway, dhcp_netmask, dhcp_lease_time, "TR-610")
+  if dhcp_result = OK then
+    net.ip=dhcp_ip
+    net.netmask=dhcp_netmask
+    net.gatewayip=dhcp_gateway
+  else
+    displayPrint(LCD_FIX_FONT, "DHCP error", 5, 55)
+	commonSleep(5, false)
+    net.ip=xip
+    net.netmask=xnm
+    net.gatewayip=xgw
+  end if
+end sub

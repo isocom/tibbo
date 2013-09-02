@@ -1,0 +1,12 @@
+HTML		Field		Field			Input	Query	Table	HTML
+ID			Name		String									Data
+
+>>ID		id			ID				Y		=		Y		S,I,8
+>>EVENT		type		Event			Y		=		Y		B,L,0-CLOCK IN;1-CLOCK OUT;2-TEMP IN;3-TEMP OUT;
+>>DATEB		DATE		Date (After)	N		>		N		W,D,dmy,/
+>>TIMEB		TIME		Time (After)	N		>		N		W,T
+>>DATEA		DATE		Date (Before)	N		<=		N		W,D,dmy,/
+>>TIMEA		TIME		Time (Before)	N		<=		N		W,T
+>>DATE		DATE		Date			Y		N		Y		W,D,dmy,/
+>>TIME		TIME		Time			Y		N		Y		W,T
+<END>

@@ -1,0 +1,23 @@
+include "../../lib/common/common.tbh"
+include "../../lib/ttsoft/bpdriver.tbh"
+include "global.tbh"
+
+declare sub processDisplayMsg(s as string)
+declare sub processDisplayText(font as byte, aligment as byte, s as string)
+
+public sub on_BPDriver_Datagram(byref datagram as string)
+  if datagram = "DM" then processDisplayMsg(token(datagram, 1, TAB))
+  if datagram = "DT" then processDisplayText(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), token(datagram, 3, TAB))
+'  if datagram = "X1" then changeFSMState(EnteringTime)
+end sub
+
+public sub bpdSendTanTime(sn as string, time as word)
+  bpdriverSend("Y1" + chr(TAB) + sn + chr(TAB) + str(time) + chr(TAB))
+end sub
+
+sub processDisplayMsg(s as string)
+end sub
+
+sub processDisplayText(font as byte, aligment as byte, s as string)
+end sub
+

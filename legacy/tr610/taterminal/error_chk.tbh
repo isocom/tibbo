@@ -1,0 +1,6 @@
+
+declare function error_ip_chker (byref str_val as string) as boolean
+declare function error_time_chker (sYear as string(4), sMonth as string(2), sDate as string(2), sHour as string(2), sMin as string(2), sSec as string(2)) as boolean
+declare function error_settings_chker as boolean
+declare function error_fd_chker as boolean
+declare function error_rtc_chker as boolean

@@ -1,0 +1,135 @@
+'=============================================================
+'	DEVICE.TBS
+'=============================================================
+
+
+const FIRMWARE_VERSION="{tr610.4.00.01}"
+const HARDWARE_VERSION="1A"
+const DEVICE_SNTP_RETRY = 3
+
+const ID_LEN = 8
+
+const RELAY_IO1 = 47
+const RELAY_IO2 = 48
+const RELAY_TIMER = 5
+
+const TT_STG_NUM = MAX_HTML_NUM_SETTINGS-2  'TT is time setting, which is stored in RTC, have to be deal differently
+const TD_STG_NUM = MAX_HTML_NUM_SETTINGS-1	'TD is date setting, which is stored in RTC, have to be deal differently
+
+const PAT_BLINK_BOTH_IN_TURNS_FAST=	"GRGRGRGR**"
+const PAT_GREEN_LOOP=			"G~"
+
+const SDF_FILE="sdf.txt"
+
+declare keycodeF1 as byte
+declare keycodeF2 as byte
+declare keycodeF3 as byte
+declare keycodeF4 as byte
+
+enum on_kp_event_destinations			
+	ON_KP_EVENT_DEST_NONE
+	ON_KP_EVENT_DEST_INPUT_BOX
+	ON_KP_EVENT_DEST_LIST_BOX
+	ON_KP_EVENT_DEST_MSG_BOX
+	ON_KP_EVENT_DEST_MENU
+	ON_KP_EVENT_DEST_CLOCK
+	ON_KP_EVENT_DEST_TBL
+	ON_KP_EVENT_MC_SET
+end enum
+
+enum on_sys_timer_event_destinations
+	ON_SYS_TIMER_EVENT_DEST_NONE
+	ON_SYS_TIMER_EVENT_DEST_INPUT_BOX
+	ON_SYS_TIMER_EVENT_DEST_LIST_BOX
+	ON_SYS_TIMER_EVENT_DEST_MSG_BOX
+	ON_SYS_TIMER_EVENT_DEST_MENU
+	ON_SYS_TIMER_EVENT_DEST_TBL
+	ON_SYS_TIMER_EVENT_DEST_CLOCK
+end enum
+
+enum on_reader_event_destinations
+	ON_READER_EVENT_DEST_NONE
+	ON_READER_EVENT_DEST_INIT
+	ON_READER_EVENT_DEST_CLOCK
+end enum
+
+enum sockets
+	SOCK_UDP=0
+	SOCK_SNTP = 1
+	SOCK_LS =2		'<------------------- sock number for SNTP, change this according to your program
+	SOCK_HTTP=3		'3 ~ 3+NUM_HTTP_PORTS-1
+	SOCK_DHCP=15
+end enum
+
+enum login_comparison_codes
+	LC_WILL_ACCEPT,
+	LC_WILL_ACCEPT_REPEATED_LOGIN,
+	LC_WILL_ACCEPT_LOWER_IN_PROGRESS,
+	LC_WILL_REJECT_HIGHER_IN_PROGRESS,
+	LC_WILL_REJECT_SAME_IN_PROGRESS
+end enum
+
+enum cmd_modes 'in the order of least to highest priority
+	CMD_MODE_NONE,
+	CMD_MODE_AGGREGATE,
+	CMD_MODE_HTTP,
+	CMD_MODE_TERMINAL,
+	CMD_MODE_UDP
+end enum
+
+enum event_type 
+	EVENT_IN,
+	EVENT_OUT,
+	EVENT_TEMPIN,
+	EVENT_TEMPOUT
+end enum
+
+enum en_device_rdwr
+	DEVICE_SET,
+	DEVICE_GET
+end enum
+
+declare login_mode as cmd_modes
+declare login_data as string(32)
+declare login_tout as word
+declare login_sock as byte
+declare index_page_socknum as byte
+declare current_event as event_type
+declare device_tbl_result as en_tbl_status
+
+declare sub device_init
+declare sub reset_login_timeout
+declare sub device_setting_saved(sname as string(MAX_SETTING_NAME_LEN), index as byte, s as string)
+declare sub device_html_proc_cmd
+declare sub logout
+declare sub set_net_ip
+declare sub date_time_str(byref date_str as string(14), byref hr_str as string(2),byref min_str as string(2), byref sec_str as string(2),byref wday_str as string(3), TZ_time as no_yes)
+declare sub device_SNTPAutoSync
+
+declare sub device_card_read(sID as string(ID_LEN))
+declare sub device_lcd_print_logo
+declare sub device_replace_chr(byref s as string, a as string, b as string)
+declare sub device_sys_busy(busy as no_yes)
+declare sub device_login_event(op as cmd_modes)
+declare sub device_login_timer_proc
+declare sub device_alloc_memory(disalloc as sockets, alloc as sockets)
+declare sub device_html_sync
+declare sub device_relay_timer
+declare sub device_modtime_sg(byref date_time as string(23), byref field_name as string, op as en_device_rdwr)
+declare sub device_pause(sec as word)
+declare sub device_key_proc(key_event as pl_kp_event_codes, key_code as byte)
+declare sub device_log_download
+declare sub device_wl_download
+declare sub device_tbl_deleted(tbl_name as string)
+
+declare function device_get_mem_usage as byte
+declare function device_spec_arg_sg(byref setting_name as string,index as byte, byref setting_val as string, byref stg_num as byte, rw as en_stg_rdwr) as en_stg_status
+declare function compare_logins(new_login as cmd_modes, cmd_data as string(32), sock as byte) as login_comparison_codes
+declare function login(new_login as cmd_modes, cmd_data as string(32), sock as byte) as ok_ng
+declare function device_setting_check(byref setting_name as string,byref setting_val as string) as ok_ng
+declare function device_operation(s as string(1)) as string(1)
+declare function device_check_DHCP(init as no_yes) as ok_ng
+declare function device_agg_func_result(operation as string(1), op_result as string(1), byref err as no_yes) as string(50)
+declare function device_get_field_val(context_name as string(5), field_name as string(13), byref field_val as string) as ok_ng
+declare param_on,param_dn as string(16)
+

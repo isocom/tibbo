@@ -1,0 +1,283 @@
+ '***********************************************************************************************************
+'			NETWORK-SIDE COMMANDS/REPLIES
+'***********************************************************************************************************
+
+include "global.tbh"
+
+public dim ser_cmd_str as string(MAX_SER_CMD_LEN)
+
+
+'-------------------------------------------------------------
+public sub ser_cmd_init
+	ser_cmd_str
+end sub
+
+
+'-------------------------------------------------------------
+public sub ser_cmd_proc(byref cmd_str as string(MAX_SER_CMD_LEN),cmd_source_ser_port as word,error_mode as no_yes)
+	dim temp_str as string(MAX_SER_CMD_LEN)
+	dim index as byte
+	dim reply_str as string(MAX_SER_RPL_LEN)
+	dim x as byte
+	dim setting_name as string(MAX_SETTING_NAME_LEN)
+	dim explicit_index as no_yes
+	dim logout as no_yes
+	dim s as string(20)
+
+	logout=NO
+
+	'default index depends on the communication channel
+	index=ser.num 'this is default in case the index is not specified explicitly 
+
+	'see of command has escape sequence included (except for "D" command)
+	explicit_index=NO
+	x=instr(1,cmd_str,CMD_ESC_CHAR,1)
+	if x>0 then
+		'yes, the sequence is included -- extract it
+		index=val(mid(cmd_str,x+1,1))
+		temp_str=right(cmd_str,len(cmd_str)-x-1)
+		cmd_str=left(cmd_str,x-1)+temp_str
+		if index>0 then index=index-1
+		if index>=MAX_NUM_SERIAL_PORTS then goto reply_err
+		explicit_index=YES
+	end if
+
+	sock.num=SOCK_COMM+index
+
+
+	select case left(cmd_str,1)
+
+	case "X": 'echo command (device info) -----------------------
+		reply_str=get_x_flags_ser(index)
+		goto reply_ok_have_data
+
+
+	case "G": 'get setting --------------------------------------
+		setting_name=mid(cmd_str,2,2)
+		if setting_get_num_members(setting_name,x)<>EN_STG_STATUS_OK then goto reply_err
+		if index>=x then
+			'index is out of range
+			if explicit_index=YES then
+				goto reply_err 'index was specified, so this is an error
+			else
+				'index was "figured out automatically", but this setting has a single value
+				'for the entire device. We simply reset the index
+				index=0 
+			end if
+		end if
+
+		select case setting_sg(setting_name,index,reply_str,EN_STG_GET)
+		case EN_STG_STATUS_OK:
+			goto reply_ok_have_data
+		case EN_STG_STATUS_UNKNOWN:
+			goto reply_err
+		case EN_STG_STATUS_INVALID_INDEX:
+			goto reply_err
+		case else:
+			goto reply_failed
+		end select
+
+
+	case "S": 'set setting --------------------------------------
+		setting_name=mid(cmd_str,2,2)
+		if setting_get_num_members(setting_name,x)<>EN_STG_STATUS_OK then goto reply_err
+		if index>=x then
+			'index is out of range
+			if explicit_index=YES then
+				goto reply_err 'index was specified, so this is an error
+			else
+				'index was "figured out automatically", but this setting has a single value
+				'for the entire device. We simply reset the index
+				index=0 
+			end if
+		end if
+
+		select case setting_sg(setting_name,index,right(cmd_str,len(cmd_str)-3),EN_STG_SET)
+		case EN_STG_STATUS_OK:
+			goto reply_ok_have_data
+		case EN_STG_STATUS_INVALID:
+			goto reply_err
+		case EN_STG_STATUS_INVALID_INDEX:
+			goto reply_err
+		case EN_STG_STATUS_UNKNOWN:
+			goto reply_err
+		case else:
+			goto reply_failed
+		end select
+
+
+	case "U": 'extented device status info ----------------------
+		reply_str=sock.remoteip+"/"+str(sock.remoteport)
+		goto reply_ok_have_data
+
+
+	case "O": 'logout -------------------------------------------
+		logout=YES 'we must send the reply first, and only then exit the programming mode
+		goto reply_ok
+
+
+	case "I": 'initialize all settings --------------------------
+		if settings_restore_def(YES)<>EN_STG_STATUS_OK then goto reply_failed
+			goto reply_ok
+
+	case "i": 'initialize settings for selected channel --------------------------
+		if init_settings_of_one_channel(index)=NG then goto reply_failed
+		goto reply_ok
+
+
+	case "E": 'reboot -------------------------------------------
+		sys.reboot
+
+
+	case "V": 'version string -----------------------------------
+		reply_str=FIRMWARE_VERSION
+		goto reply_ok_have_data
+
+
+	case "H": 'hardware version (legacy command) ----------------
+		reply_str="1A"
+		goto reply_ok_have_data
+
+
+	case "C": 'number of SDF lines to load (new command) --------
+		if mid(cmd_str,2,1)<>"S" then goto reply_err 'only SDF data can be fetched through the serial port
+		reply_str=str(num_sdf)
+		goto reply_ok_have_data		
+	
+
+	case "F": 'get specified SDF line ---------------------------
+		if mid(cmd_str,2,1)<>"S" then goto reply_err 'only SDF data can be fetched through the serial port
+		x=val(right(cmd_str,len(cmd_str)-2))
+		if x>=num_sdf then goto reply_err
+		romfile.open(SDF_FILE)
+		romfile.pointer=sdf_addr(x)
+		
+		if x=num_sdf-1 then
+			reply_str=romfile.getdata(romfile.size-sdf_addr(x))
+		else
+			reply_str=romfile.getdata(sdf_addr(x+1)-sdf_addr(x))
+		end if
+		
+		'we need to cut out CR/LF at the end if they are present
+		x=instr(1,reply_str,chr(13),1)
+		if x>0 then reply_str=left(reply_str,x-1)
+		goto reply_ok_have_data
+
+
+	case "P" 'parameter command ---------------------------------
+		select case mid(cmd_str,2,2)
+		case "DI": 'set destination IP
+			if sock.statesimple<>PL_SSTS_CLOSED then goto reply_rejected 'only for compatibility with EM100
+			cmd_str=right(cmd_str,len(cmd_str)-3)
+			if len(ddval(cmd_str))<>4 then goto reply_err
+			sock.targetip=cmd_str
+			overriding_destination_set(index)=YES
+			goto reply_ok
+		
+		case "DP": 'set destination port
+			if sock.statesimple<>PL_SSTS_CLOSED then goto reply_rejected 'only for compatibility with EM100
+			sock.targetport=val(right(cmd_str,len(cmd_str)-3))
+			overriding_destination_set(index)=YES
+			goto reply_ok
+		
+		case "RM":
+			x=val(right(cmd_str,len(cmd_str)-3))
+			if x>RM_CLIENT then goto reply_err
+			param_rm(index)=x
+			set_sock_connmode(index)
+			goto reply_ok
+		
+		case "SF":
+			x=val(right(cmd_str,len(cmd_str)-3))
+			if x>YES then goto reply_err
+			param_sf(index)=x
+			set_sock_connmode(index)
+			goto reply_ok
+
+		case "TP":
+			if sock.statesimple<>PL_SSTS_CLOSED then goto reply_rejected
+			x=val(right(cmd_str,len(cmd_str)-3))
+			if x>PL_SOCK_PROTOCOL_TCP then goto reply_err
+			sock.protocol=x
+			goto reply_ok
+
+		case "CE":
+			if param_rm(index)=RM_SERVER or sock.statesimple<>PL_SSTS_CLOSED then goto reply_rejected
+			cmd_str=right(cmd_str,len(cmd_str)-3)
+			x=instr(1,cmd_str,"/",1)
+			if x<>0 then
+				'destination IP/port are included
+				if len(ddval(cmd_str))<>4 then goto reply_err 'invalid IP format
+				sock.targetip=left(cmd_str,x-1)
+				sock.targetport=right(cmd_str,len(cmd_str)-x)
+				overriding_destination_set(index)=YES
+			else
+				'destination IP/port are NOT included
+					if overriding_destination_set(index)=NO then
+						if setting_sg("DI",index,s,EN_STG_GET)<>EN_STG_STATUS_OK then goto reply_failed
+						sock.targetip=s
+						if setting_sg("DP",index,s,EN_STG_GET)<>EN_STG_STATUS_OK then goto reply_failed
+						sock.targetport=val(s)
+					end if
+			end if
+			
+			sock.connect
+			goto reply_ok
+
+		case "CC":
+			if sock.statesimple<>PL_SSTS_CLOSED then sock.close
+			goto reply_ok
+
+		case "CA":
+			if sock.statesimple<>PL_SSTS_CLOSED then sock.reset
+			goto reply_ok
+
+		case else
+			goto reply_err
+		
+		end select
+
+	case else
+		goto reply_err
+	
+	end select
+
+reply_rejected:
+	reply_str="R"
+	goto send
+
+reply_err:
+	reply_str="C"
+	goto send
+
+reply_failed:
+	reply_str="F"
+	goto send
+
+reply_ok:
+	reply_str="A"
+	goto send
+
+reply_ok_have_data:
+	reply_str="A"+reply_str
+	goto send
+
+send:
+	reply_str=chr(2)+reply_str+chr(13) 'add encapsulation
+	ser.setdata(reply_str)
+	ser.send
+	
+	'do we need to logout?
+	if logout=YES then
+		'wait until the reply is sent out in full -- when we exit ser prog the serial port may be closed
+		while ser.txlen>0
+		wend
+		'additional delay -- there still may be some unsent data in the UART's FIFO
+		for x=0 to 250
+		next x
+		exit_ser_prog_mode(index)
+	end if
+
+
+reply_null:
+end sub

@@ -1,0 +1,145 @@
+include "global.tbh"
+
+include "../../lib/common/common.tbh"
+include "../../lib/common/settings.tbh"
+include "../../lib/db/dbCards.tbh"
+include "../../lib/db/dbHumans.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+include "../../lib/ttsoft/bpdriver.tbh"
+
+'Settings description
+'RS = Rotate Screen
+'DH = use DHcp to get ip address; 0 - use static address; 1 - try to use DHCP server if possible
+'IP = IP address
+'NM = Net Mask
+'GW = GateWay
+'SR = Swap Relay
+'PW = PassWord
+'SN = Serial Number
+'DI = Direction; 0 - brak kierunku 1 - wjazd 2 - wyjazd 3 - wjazd i wyjazd
+
+'=============================================================
+dim normalState as boolean = false 'means after successfull initialization
+dim sysTimeCounter as long = 0     'System Wide 1/10 second counter, staring from 0 on powerUP
+dim button_timer as byte           'track how long button was keept pressed
+'=============================================================
+
+sub on_sys_init
+  settingsInit("TTD-0006-05r0xx4")
+  TR610DeviceInit(val(settingsGet("RS",0)), val(settingsGet("DH",0)), settingsGet("IP",0), settingsGet("NM",0), settingsGet("GW",0))
+  relaySwap(val(settingsGet("SR",0)))
+'  udpserverInit
+
+  displayMessage("Inicjalizacja bazy danych")
+  dbCardsInit(1)
+  dbHumansInit(2)
+  commonSleep(5)
+
+  displayClearAll
+  displayPrint(LCD_STD_FONT, "TTD-0006-05 Parking", 5, 05)
+  displayPrint(LCD_STD_FONT, "SKU: " + settingsGetSignature, 5, 15)
+  displayPrint(LCD_FIX_FONT, "SNR: " + settingsGet("SN",0), 5, 35)
+  displayPrint(LCD_FIX_FONT, "IP : " + net.ip, 5, 45)
+  displayPrint(LCD_FIX_FONT, "TIP: " + settingsGet("BP",0), 5, 55)
+
+  bpdriverInit(0, settingsGet("BP",0))
+  commonSleep(5)
+  displayShowClock(true)
+  normalState = true  
+
+  ser.num = 0
+  ser.enabled = NO
+  ser.baudrate = ser.div9600/2
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES
+end sub
+
+sub on_button_pressed()
+  button_timer = 0 
+end sub
+
+sub on_button_released()
+  if button_timer > 30 then
+    if fd.format((fd.availableflashspace/4)*3,10)<>PL_FD_STATUS_OK then
+      displayPrint(LCD_STD_FONT, "Flash format error: " + str(fd.laststatus), 5, 5) 
+	  sys.halt
+    end if
+	displayPrintMsg("Flash drive has been formated. Will reboot in 15 seconds", 0, 0, lcd.width, lcd.height, YES)
+	commonSleep(15)
+	sys.reboot
+  end if
+end sub
+
+sub on_sys_timer
+  if button.pressed then
+    button_timer = button_timer + 1
+    if button_timer > 30 then pat.play("R-G~*",PL_PAT_CANINT)
+  end if
+
+  if not normalState then exit sub
+
+  relayTimer
+  displayTimer
+  keypadTimer
+  'entertimeTimer
+  bpdriverTimer
+
+  sysTimeCounter = sysTimeCounter + 1
+  'if fsmStateTimeout >= 0 then fsmStateTimeout = fsmStateTimeout - 1
+  'if fsmStateTimeout = 0 then changeFSMState(Iddle)
+end sub
+
+sub on_sock_data_arrival
+  if sock.num = bpdriverSocketNumber then bpdriverReadDatagram
+  'end if 'sock.num = bpdriverSocketNumber
+end sub
+
+sub on_ser_data_arrival
+  select case ser.num
+    case READER_PORT_NUM:
+      readerProcess
+      if readerIsNewCardSNDetected then
+        beep.play("B", PL_BEEP_CANINT)
+        bpdriverSendCardDetected(readerLastCardSN)
+	    if not dbCardsFindBy_SerialNumber(readerLastCardSN) then
+          displayMessage("Nieznana karta")
+          dbCards_SerialNumber = readerLastCardSN
+	      dbCardsSave
+	    else
+	      displayMessage("Karta OK")
+	    end if
+      end if
+	  'end case READER_PORT_NUM
+	
+	case 1:
+      'end case
+	case 2:
+	  'end case
+  end select
+end sub
+
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+  dim s as string
+  dim key as KeypadKeyEnum = keypadOnKey(key_event, key_code)
+  if key_event = PL_KP_EVENT_PRESSED then
+    s = "TT Soft Sp. z o.o." + chr(&h0C)
+    s = s + "Parkomat Tibbo" + chr(&h0C)
+    s = s + chr(&h1B) + chr(&h50) + chr(&h10)
+    s = s + "0610574701045507"
+    s = s + "0610574701045507" + chr(&h0C)
+    s = s + chr(&h10) + chr(&h10) + chr(&h10) + chr(&h10) + chr(&h10) + chr(&h10)
+	s = s + chr(&h1B) + chr(&h6D)
+    ser.num = 0	
+	ser.setdata(s)
+	ser.send
+  end if
+end sub

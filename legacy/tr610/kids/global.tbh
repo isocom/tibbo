@@ -1,0 +1,2 @@
+'This file is for global definitions (that is, if you gonna have any)
+declare function password_verify as ok_ng

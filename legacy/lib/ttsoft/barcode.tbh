@@ -1,0 +1,6 @@
+const MAX_BARCODE_LEN = 32
+
+declare barcodeLastCode as string(MAX_BARCODE_LEN) 'Ostatnio odczytany transponder
+declare sub barcodeInit(portNum as byte)
+declare sub barcodeProcess
+declare function barcodeIsNewCodeReaded as boolean

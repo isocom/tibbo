@@ -1,0 +1,67 @@
+<?
+	include "../../lib/common/html.tbh"
+	include "../../lib/common/settings.tbh"
+?>
+<html>
+<HEAD>
+<META HTTP-EQUIV="Expires" CONTENT="Tue, 01 Jan 1980 1:00:00 GMT">
+<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+<style type="text/css">
+body
+{
+font-family: arial, 'sans serif';
+background-color:#663144;
+color: #E0D6B8;
+font-size: 100%;
+}
+
+a
+{
+float:left;
+width:10em;
+text-decoration:none;
+color:#E0D6B8;
+background-color:#663144;
+padding:0.2em 0.6em;
+}
+a:hover {background-color:#76A0B0;}
+li {display:inline;}
+</style>
+<script type="text/javascript">
+function reloadImg(id) {
+   var obj = document.getElementById(id);
+   var src = obj.src;
+   var pos = src.indexOf('?');
+   if (pos >= 0) {
+      src = src.substr(0, pos);
+   }
+   var date = new Date();
+   obj.src = src + '?v=' + date.getTime();
+   return false;
+}
+</script>
+</HEAD>
+
+<body>
+<h3>EParking</h3>
+<a href = 'home.html' target = mainPane> Home/Status </a> <br>
+<br>
+<a href = 'port.html' target = mainPane> Network Settings </a> <br>
+<a href = 'port.html' target = mainPane> Parking Settings </a> <br>
+<br>
+<br><br><br><br><br><br><br><br><br><br><br><hr>
+<?
+  htmlWrite(settingsGetSignature+"<br>")
+  htmlWrite("SN: "+settingsGet("SN",0)+"<br>")
+  htmlWrite("IP: "+net.ip+"<br>")
+  htmlWrite("MAC: "+net.mac+"<br>")
+?>
+
+<hr><center><img src="caplcd.html" id="lcd"><br>
+<a href="#" onClick="return reloadImg('lcd');">Refresh</a></center><br><hr>
+
+<a href = 'fddir.html' target = mainPane> FD.dir </a> <br>
+<a href = 'reset.html' target = mainPane> Reset device </a> <br>
+<a href = 'reboot.html' target = mainPane> Reboot device </a> <br>
+</BODY>
+</html>

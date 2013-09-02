@@ -1,0 +1,142 @@
+include "global.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/common/settings.tbh"
+include "../../lib/tr610/relay.tbh"
+
+declare sub processTime(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+declare sub processPing
+declare sub processRelay(r as byte, time as word)
+declare sub processDisplayMsg(s as string)
+declare sub processDisplayText(font as byte, aligment as byte, s as string)
+declare sub pingTargetIP
+
+dim udpserverTimerCounter as long = 0
+dim udpserverServerLastSeen as long = 0
+dim udpserverPingCounter as byte = 0
+
+public sub udpserverInit
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = PL_SOCK_PROTOCOL_UDP
+  sock.inconmode = PL_SOCK_INCONMODE_ANY_IP_ANY_PORT
+  sock.reconmode = PL_SOCK_RECONMODE_3
+  sock.connectiontout = 0
+  sock.acceptbcast = NO
+  sock.targetbcast = NO
+
+  sock.targetip = settingsGet("BP",0)
+  sock.targetport = "2009"
+
+  sock.connect
+end sub
+
+public sub udpserverTimer
+  if udpserverTimerCounter mod 70 = 0 then pingTargetIP
+
+  if (udpserverTimerCounter - udpserverServerLastSeen) mod 300 = 240 then
+    beep.play("BBBBBBBBBBBBBBBBB", PL_BEEP_CANINT)
+	'close the socket, deallocate space
+    sock.num = UDP_SERVER_SOCKET_NUMBER
+	sock.inconmode=PL_SOCK_INCONMODE_NONE
+	sock.discard
+	while sock.statesimple<>PL_SSTS_CLOSED
+	wend
+	sock.rxbuffrq(0)
+	sock.txbuffrq(0)
+	sys.buffalloc
+  end if
+
+  if (udpserverTimerCounter - udpserverServerLastSeen) mod 300 = 290 then
+    udpserverInit
+    beep.play("*B-*B-*B-*B-*B-*B-*B-*B-*B", PL_BEEP_CANINT)
+  end if
+
+  if (udpserverTimerCounter - udpserverServerLastSeen) = 600*10 then
+    sys.reboot
+  end if
+
+  udpserverTimerCounter = udpserverTimerCounter + 1
+end sub
+
+public sub pingTargetIP
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata("P" + chr(TAB) + "TTD-0006-02" + chr(TAB) + settingsGet("SN", 0) + chr(TAB))
+  sock.send
+end sub
+
+public sub udpserverSendCardDetected(sn as string)
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata("S" + chr(TAB) + sn + chr(TAB))
+  sock.send
+end sub
+
+public sub udpserverSendBarCode(bc as string)
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata("B" + chr(TAB) + bc + chr(TAB))
+  sock.send
+end sub
+
+public sub udpserverSendKey(key as string)
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata("K" + chr(TAB) + key + chr(TAB))
+  sock.send
+end sub
+
+public sub udpserverSendTanTime(sn as string, time as word)
+  sock.num = UDP_SERVER_SOCKET_NUMBER
+  if sock.statesimple <> PL_SSTS_EST then exit sub
+  sock.setdata("Y1" + chr(TAB) + sn + chr(TAB) + str(time) + chr(TAB))
+  sock.send
+end sub
+
+public sub udpserverReadDatagram
+  dim datagram as string
+  datagram = sock.getdata(255)
+
+  dim command as string = token(datagram, 0, TAB)
+
+  if command = "T" then processTime(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), val(token(datagram, 3, TAB)), val(token(datagram, 4, TAB)), val(token(datagram, 5, TAB)), val(token(datagram, 6, TAB)))
+  if command = "P" then processPing
+  if command = "R" then processRelay(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)))
+  if command = "X1" then changeFSMState(EnteringTime)
+  if command = "REBOOT" then sys.reboot
+  if command = "DM" then processDisplayMsg(token(datagram, 1, TAB))
+  if command = "DT" then processDisplayText(val(token(datagram, 1, TAB)), val(token(datagram, 2, TAB)), token(datagram, 3, TAB))
+end sub
+
+'PRIVATE ================================================================================================
+
+sub processPing
+  udpserverServerLastSeen = udpserverTimerCounter
+end sub
+
+sub processDisplayMsg(s as string)
+  globalString1 = s
+  changeFSMState(DiplayingMsg)
+end sub
+
+sub processDisplayText(font as byte, aligment as byte, s as string)
+  globalString1 = s
+  globalByte1 = font
+  globalByte2 = aligment
+  changeFSMState(DiplayingTxt)
+end sub
+
+sub processTime(y as byte, mm as byte, d as byte, h as byte, m as byte, s as byte)
+  rtc.setdata(daycount(y, mm, d), mincount(h, m), s)
+end sub
+
+sub processRelay(r as byte, time as word)
+  select case r
+    case 1
+      relay1Open(time)
+    case 2
+      relay2Open(time)
+  end select
+end sub

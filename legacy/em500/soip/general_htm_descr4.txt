@@ -1,0 +1,11 @@
+Setting	Setting							Setting 
+Name	String							Data
+
+>>ON	Owner Name						S,I,8	^
+>>DN	Device Name 					S,I,8	^
+>>DH	DHCP							B,L,0-Disabled;1-Enabled;	^
+>>IP	IP-address 						S,I,15	^
+>>GI	Gateway IP-address 				S,I,15	^
+>>NM	Netmask							S,I,15	^
+>>RC	On-the-fly Commands 			B,L,0-Disabled;1-Enabled;	^
+>>OP	On-the-fly Password 			B,L,0-Disabled;1-Enabled;	^

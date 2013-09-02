@@ -1,0 +1,5 @@
+'This file is for global definitions (that is, if you gonna have any)
+
+declare sub processBPDriverMessage(byref datagram as string)
+
+declare function password_verify as ok_ng

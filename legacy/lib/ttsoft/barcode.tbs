@@ -1,0 +1,48 @@
+include "barcode.tbh"
+
+include "../common/common.tbh"
+
+const BARCODE_PORT_BR = 9600
+const CR=13
+const LF=10
+
+public dim barcodeLastCode as string(MAX_BARCODE_LEN)
+dim barcodeBuffer as string(MAX_BARCODE_LEN*2)
+dim barcodeNewCodeFlag as boolean = false
+
+public sub barcodeInit(portNum as byte)
+'Initialize the com port for reader
+  ser.num = portNum
+  ser.enabled = NO
+  ser.baudrate = ser.div9600/(BARCODE_PORT_BR/9600)
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_NONE
+  ser.bits = PL_SER_BB_8
+  if ser.rxbuffsize = 0 then
+    ser.rxbuffrq(1)
+    sys.buffalloc
+  end if
+  ser.enabled = YES
+end sub
+
+public sub barcodeProcess
+  dim Pos1, Pos2 as byte
+  barcodeBuffer = barcodeBuffer + ser.getdata(255)
+  Pos1 = instr(1,barcodeBuffer,chr(LF),1)	
+  Pos2 = instr(1,barcodeBuffer,chr(CR),1)
+  if Pos2 > 0 or Pos1 > 0 then
+    if Pos1 = 0 then Pos1 = Pos2
+	if Pos2 = 0 then Pos2 = Pos1
+	if Pos1 > Pos2 then Pos1 = Pos2
+    barcodeBuffer = mid(barcodeBuffer, 1, Pos1)
+	barcodeLastCode = barcodeBuffer
+	barcodeNewCodeFlag = true
+    barcodeBuffer = ""
+  end if
+  if len(barcodeBuffer) > MAX_BARCODE_LEN+4 then barcodeBuffer = ""
+end sub
+
+public function barcodeIsNewCodeReaded as boolean
+  barcodeIsNewCodeReaded = barcodeNewCodeFlag
+  if barcodeNewCodeFlag then barcodeNewCodeFlag = false
+end function

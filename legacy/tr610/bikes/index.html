@@ -1,0 +1,38 @@
+<?
+include "../../lib/common/html.tbh"
+include "../../lib/common/settings.tbh"
+?>
+
+<html>
+<body>
+<h1>Na szybko interface do ustawien</h1>
+<b>Warninig</b>: please reboot for changes to take effect !!!<br>
+<a href = 'reboot.html'> Reboot device </a> <br>
+
+<h2>TCP/IP</h2>
+<form action="settings.html" method="post">
+  Use DHCP:
+  <input type="radio" name="DH" value="Y" <? if val(settingsGet("DH", 0)) = 1 then htmlWrite("checked") ?> >Yes
+  <input type="radio" name="DH" value="N"  <? if val(settingsGet("DH", 0)) = 0  then htmlWrite("checked") ?> >No<br>
+  IP Address:<input type="text" name="IP" value="<? htmlWrite(net.ip) ?>"><br>
+  Network mask:<input type="text" name="NM" value="<? htmlWrite(net.netmask) ?>"><br>
+  Gateway:<input type="text" name="GW" value="<? htmlWrite(net.gatewayip) ?>"><br>
+  <input type="submit" value="set">
+</form>
+
+<h2>Device</h2>
+<form action="settings.html" method="post">
+  JAVA server IP:<input type="text" name="BP" value="<? htmlWrite(settingsGet("BP", 0)) ?>"><br>
+  Serial number: <input type="text" name="SN" value="<? htmlWrite(settingsGet("SN", 0)) ?>"><br>
+  Rotate screen:
+  <input type="radio" name="RS" value="Y" <? if val(settingsGet("RS", 0)) = 1 then htmlWrite("checked") ?> >Yes
+  <input type="radio" name="RS" value="N" <? if val(settingsGet("RS", 0)) = 0  then htmlWrite("checked") ?> >No<br>
+  Relay Swap:
+  <input type="radio" name="SR" value="Y" <? if val(settingsGet("SR", 0)) = 1 then htmlWrite("checked") ?> >Yes
+  <input type="radio" name="SR" value="N" <? if val(settingsGet("SR", 0)) = 0  then htmlWrite("checked") ?> >No<br>
+  LOCALIZATION__NAME__: <input type="text" name="LC" value="<? htmlWrite(settingsGet("LC", 0)) ?>"><br>
+  <input type="submit" value="set">
+</form>
+
+</body>
+</html>

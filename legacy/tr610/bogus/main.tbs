@@ -1,0 +1,56 @@
+include "global.tbh"
+
+include "../../lib/common/dhcp.tbh"
+include "../../lib/common/common.tbh"
+include "../../lib/tr610/display.tbh"
+include "../../lib/tr610/keypad.tbh"
+include "../../lib/tr610/reader.tbh"
+include "../../lib/tr610/relay.tbh"
+include "../../lib/tr610/tr610setup.tbh"
+
+dim normalState as boolean = false
+
+'=============================================================
+sub on_sys_init
+  TR610DeviceInit(NO, false)
+  displayShowClock(true)
+  normalState = true  
+end sub
+
+'=============================================================
+sub on_sys_timer
+  if not normalState then exit sub
+  
+  relayTimer
+  displayTimer
+  keypadTimer
+end sub
+
+'======== OBSLUGA PORTU SZEREGOWEGO ===========================
+sub on_ser_data_arrival
+  select case ser.num
+  case READER_PORT_NUM:
+    readerProcess
+  end select
+
+  if readerIsNewCardSNDetected then
+    beep.play("B", PL_BEEP_CANINT)
+	displayClear(0, 55, lcd.width, 10)
+	displayPrint(LCD_FIX_FONT, "SN: " + readerLastCardSN, 5, 55)
+  end if
+end sub
+
+'======== OBSLUGA KLAWIATURY =================================
+sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
+  dim key as KeypadKeyEnum = keypadKeyDecode(key_code)
+  
+  if key_event = PL_KP_EVENT_PRESSED then
+    keypadLEDLit(key, true)
+    displayClear(0, 55, lcd.width, 10)
+    displayPrint(LCD_FIX_FONT, "KEY: " + keypadToStr(key), 5, 55)
+	if key = KP_BUTTON_LU then relay1Open(20)
+	if key = KP_BUTTON_LD then relay2Open(20)
+  end if
+  
+  if key_event = PL_KP_EVENT_RELEASED then keypadLEDLit(key, false)  
+end sub

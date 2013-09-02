@@ -1,0 +1,30 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD W3 HTML//EN">
+<HTML>
+<HEAD>
+<META HTTP-EQUIV="Expires" CONTENT="Tue, 01 Jan 1980 1:00:00 GMT">
+<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+<script type="text/javascript">
+function HomePage()
+{
+	window.top.location.replace("main.html")
+}
+</script>
+</HEAD>
+
+<body onload='
+  <?
+    include "global.tbh"
+    include "../../lib/common/html.tbh"
+    include "../../lib/common/settings.tbh"
+
+dim rs as string = htmlGetHttpArgument(sock.httprqstring, "rs=")
+	if rs = "Y" then
+      settingsSet("SR", 0, 1)
+	else
+	  settingsSet("SR", 0, 0)
+	end if
+    htmlWrite("HomePage()")
+  ?>
+'>
+</body>
+</HTML>

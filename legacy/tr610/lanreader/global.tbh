@@ -1,0 +1,44 @@
+enum FSMStateEnum
+  Iddle,
+  CardReaded,
+  BarCodeScanned,
+  DiplayingMsg,    ' Wyswietlanie komunikatu
+  DiplayingTxt,    ' Wyswietlanie tekstu
+  EnteringTime,    ' Wprowadzanie czasu opalania
+  PreparingToTan,  ' Otwarcie przekaznika i odliczanie do 1 minuty do wlaczenia lozka
+  Tanning,         ' Opalanie sie odliczenie w dó³ ustalonego czasu
+  SelectableList   ' Wyœwietlanie Listy Wyboru
+end enum
+
+enum SerialPortFunctionEnum
+  BarCodeReader = 1
+  TCPTToverUDP
+end enum
+
+declare fsmState as FSMStateEnum
+declare fsmStateTimeout as short
+declare serialPortFunction as SerialPortFunctionEnum
+declare globalString1 as string
+declare globalByte1 as byte
+declare globalByte2 as byte
+declare sub changeFSMState(newState as FSMStateEnum)
+
+declare sub entertimeStart
+declare sub entertimeKP(keyEvent as pl_kp_event_codes, keyCode as byte)
+declare function entertimeGet as word
+declare sub entertimePreTan
+declare sub entertimeTan
+declare sub entertimeTimer
+
+declare sub sellistStart
+declare sub sellistSetSize(size as byte)
+declare sub sellistSetEntry(idx as byte, byref name as string, count as byte)
+declare sub sellistKP(keyEvent as pl_kp_event_codes, keyCode as byte)
+declare function sellistResult as string
+
+'HTML implementation
+declare function password_verify as ok_ng
+
+'BP Driver implementation
+declare sub bpdSendTanTime(sn as string, time as word)
+declare sub bpdSendUserSelection(sn as string, d as string)
