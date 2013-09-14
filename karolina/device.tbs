@@ -40,6 +40,7 @@ sub device_tr610_init
 
   device_watch_dog_reset1
   readerInit
+  rs232Init
   keypadInit(YES)
   device_tr610_initialized = true
   displayShowClock(true)

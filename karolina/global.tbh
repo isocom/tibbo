@@ -20,7 +20,6 @@ end enum
 include "sock\trunk\sock.tbh"
 include "dhcp\trunk\dhcp.tbh"
 include "display.tbh"
-include "reader.tbh"
 
 'DECLARATIONS--------------------------------------------------------
 
@@ -61,3 +60,13 @@ declare sub keypadInit(rotate as no_yes)
 declare sub keypadTimer
 declare function keypadOnKey(key_event as pl_kp_event_codes, key_code as byte) as KeypadKeyEnum
 declare sub keypadLEDBlink(key as KeypadKeyEnum, blinking as boolean)
+
+'in reader.tbs
+declare sub readerInit
+declare sub readerProcess
+declare sub callback_new_card_detected(byref card_number as string)
+
+'in rs232.tbs
+declare sub rs232Init
+declare sub rs232Process
+declare sub rs232ProcessSocket

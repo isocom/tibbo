@@ -34,10 +34,12 @@ sub on_sock_data_arrival()
   dhcp_proc_data()
   dns_proc_data()
   gae_proc_data()
+  rs232ProcessSocket()
 end sub
 
 sub on_ser_data_arrival()
   readerProcess
+  rs232Process
 end sub
 
 sub on_sock_inband()

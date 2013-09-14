@@ -1,4 +1,0 @@
-declare sub readerInit
-declare sub readerProcess
-
-declare sub callback_new_card_detected(byref card_number as string)

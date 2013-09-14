@@ -1,0 +1,47 @@
+include "global.tbh"
+
+const RS232_PORT_NUM = 0
+dim rs232_socket_num as byte = 255
+
+sub rs232Init
+  ser.num = RS232_PORT_NUM
+  ser.enabled = NO
+  ser.baudrate = ser.div9600
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES
+  
+  rs232_socket_num = sock_get("GAE")
+  sock.num = rs232_socket_num
+  sock.rxbuffrq(5)
+  sock.txbuffrq(5)
+  sys.buffalloc
+  sock.protocol = pl_sock_protocol_tcp
+  sock.inconmode = pl_sock_inconmode_any_ip_any_port
+  sock.reconmode = pl_sock_reconmode_3
+  sock.connectiontout = 0
+  sock.acceptbcast = no
+  sock.targetbcast = no
+  sock.localportlist = "1001"
+end sub
+
+sub rs232Process
+  if ser.num <> RS232_PORT_NUM then exit sub
+
+  dim s as string
+  s = ser.getdata(255)
+  sock.num = rs232_socket_num
+  sock.setdata(s)
+  sock.send
+end sub
+
+sub rs232ProcessSocket
+  if sock.num <> rs232_socket_num then exit sub
+  dim s as string(32) = sock.getdata(32)
+  ser.num = RS232_PORT_NUM
+  ser.setdata(s)
+end sub
