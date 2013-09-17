@@ -1,0 +1,269 @@
+include "global.tbh"
+
+const RS232_PORT_NUM = 0
+const BOF = &hCA
+const EOF = &hAC
+const MAX_NO_OF_DEVICES = 8
+
+enum TTSoftBusState
+  Discovery
+  Query
+end enum
+
+enum TTSoftQuery
+  GetState
+  OpenRelay
+end enum
+
+dim tcpttInitialized as boolean = false
+dim tcpttBusState as TTSoftBusState = Discovery
+dim tcpttDeviceCount as byte = 0
+dim tcpttCurrentDevice as byte = 0
+dim tcpttCurrentDiscovery as byte = 0
+dim tcpttDevIds(MAX_NO_OF_DEVICES) as byte ' Id wykrytych urzadzen
+dim tcpttTranIds(MAX_NO_OF_DEVICES) as byte ' numery seryjne transakcji
+
+dim tcpttTimerCounter as long = 0
+dim tcpttLastTxTime as long = 0
+dim tcpttInRxMode as boolean = false
+
+dim tcpttRecBuffer as string = ""
+dim tcpttNewFrameReceived as boolean = false
+dim tcpttLastFrame as string
+dim tcpttLastTxRxHadError as boolean = false
+
+declare function tcpttXor(data as string) as byte
+declare function tcpttFletcher16(data as string) as string(2)
+
+declare sub ttsdevTry
+
+public sub tcpttInit
+  'Initialize the com port for RS-485 coverter for TCP/TT bus
+  ser.num = RS232_PORT_NUM
+  ser.enabled = NO
+  ser.baudrate = ser.div9600
+  ser.flowcontrol = DISABLED
+  ser.parity = PL_SER_PR_EVEN
+  ser.bits = PL_SER_BB_8
+  ser.rxbuffrq(1)
+  ser.txbuffrq(1)
+  sys.buffalloc
+  ser.enabled = YES
+  
+  dim i as byte
+  for i = 0 to MAX_NO_OF_DEVICES-1
+    tcpttDevIds(i) = 0
+    tcpttTranIds(i) = 0
+  next i
+  tcpttInitialized = true
+end sub
+
+public sub tcpttTimer
+  if not tcpttInitialized then exit sub
+  
+  tcpttTimerCounter = tcpttTimerCounter + 1
+  if tcpttTimerCounter - tcpttLastTxTime >= 2 then 'brak odpowiedzi
+    tcpttInRxMode = false
+	tcpttLastTxRxHadError = true
+	tcpttRecBuffer = ""
+  end if
+  
+  ttsdevTry
+end sub
+
+public sub tcpttSend(ftype as byte, frame as string)
+  dim newTrId as byte = tcpttTranIds(tcpttCurrentDevice) + 1
+  if newTrId = 0 then newTrId = 1
+  if ftype = 3 then newTrId = 0
+
+  dim wrapped as string = ""  
+  wrapped = wrapped + chr(ftype) ' typ ramki
+  wrapped = wrapped + chr(tcpttDevIds(tcpttCurrentDevice)) ' id urzadzenia
+  wrapped = wrapped + chr(newTrId)            ' akt transakcja
+  wrapped = wrapped + chr(tcpttTranIds(tcpttCurrentDevice))   ' pop transakcja
+  wrapped = wrapped + chr(len(frame)+10)      ' dlugosc ramki
+  wrapped = wrapped + frame                   ' ramka wewnetrzna
+  wrapped = wrapped + chr(tcpttXor(frame))
+  wrapped = wrapped + tcpttFletcher16(wrapped)
+
+  ser.num = RS232_PORT_NUM
+  ser.setdata(chr(BOF) + wrapped + chr(EOF))
+  ser.send
+  
+  tcpttTranIds(tcpttCurrentDevice) = newTrId
+
+  tcpttLastTxTime = tcpttTimerCounter
+  tcpttInRxMode = true
+  tcpttLastTxRxHadError = false
+end sub
+
+sub tcpttProcess
+  if not tcpttInitialized then exit sub
+  if ser.num <> RS232_PORT_NUM then exit sub
+  tcpttRecBuffer = tcpttRecBuffer + ser.getdata(255)
+  
+  if len(tcpttRecBuffer) > 6 then
+	if asc(left(tcpttRecBuffer, 1)) = BOF and asc(right(tcpttRecBuffer, 1)) = EOF and len(tcpttRecBuffer) = asc(mid(tcpttRecBuffer, 6, 1)) then
+      tcpttLastFrame = mid(tcpttRecBuffer, 2, len(tcpttRecBuffer)-2)
+	  tcpttNewFrameReceived = true
+      tcpttRecBuffer = ""
+	  tcpttInRxMode = false
+	  tcpttLastTxRxHadError = false
+	end if
+  end if
+  if len(tcpttRecBuffer) > 100 then tcpttRecBuffer = ""
+  
+  ttsdevTry
+end sub
+
+public function tcpttIsNewFrameArrived as boolean
+  tcpttIsNewFrameArrived = tcpttNewFrameReceived
+  tcpttNewFrameReceived = false
+end function
+
+public function tcpttGetInternalFrame as string
+  tcpttGetInternalFrame = mid(tcpttLastFrame, 6, len(tcpttLastFrame)-3-5)
+end function
+
+public function tcpttCanSend as boolean
+  tcpttCanSend = (not tcpttInRxMode) and tcpttInitialized
+end function
+
+function tcpttFletcher16(data as string) as string(2)
+  dim sum1 as word = 255
+  dim sum2 as word = 255
+  dim l as byte = len(data)
+  dim i as byte = 0
+
+  while l > 0
+	dim tl as byte
+	if l > 21 then tl = 21 else tl = l
+	l = l - tl
+	do
+	  sum1 = sum1 + asc(right(left(data, i+1), 1)) 
+      sum2 = sum2 + sum1
+	  i = i + 1
+	  tl = tl - 1
+	loop while tl>0
+	sum1 = (sum1 and 255) + (sum1 / 256)
+	sum2 = (sum2 and 255) + (sum2 / 256)
+  wend
+
+  sum1 = (sum1 and 255) + (sum1 / 256)
+  sum2 = (sum2 and 255) + (sum2 / 256)
+  tcpttFletcher16 = chr(sum1) + chr(sum2)
+end function
+
+function tcpttXor(data as string) as byte
+  dim crc as byte = 0
+  dim i as byte
+  for i = 1 to len(data)
+    crc = crc xor asc(right(left(data, i), 1))
+  next i
+  tcpttXor = crc
+end function
+
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+'======================================================================================================
+dim devcommReaderLED as byte = 0 'miganie zielonej diody
+dim devcommCardInField as boolean = false
+dim devcommLastQuery as TTSoftQuery
+dim devcommPleaseOpen as boolean = false
+
+sub ttdevReaderGetState
+  devcommReaderLED = devcommReaderLED + 1
+  tcpttSend(1, chr(1)+chr(devcommReaderLED mod 2))
+  devcommLastQuery = GetState
+end sub
+
+sub ttdevReaderOpenRelay
+  devcommPleaseOpen = false
+  devcommReaderLED = devcommReaderLED + 1
+  tcpttSend(1, chr(2)+chr(2*10*4))
+  devcommLastQuery = OpenRelay
+end sub
+
+function toHex(s as string, i as byte) as string
+  dim r as string(4)
+  r = hex(asc(mid(s, i, 1)))
+  if len(r) = 4 then
+    toHex = right(r, 2)
+  else
+    toHex = "0" + right(r, 1)
+  end if
+end function
+
+function decodeCardSN(sn as string) as string
+  if len(sn) = 4 then decodeCardSN = toHex(sn, 1) + toHex(sn, 2) + toHex(sn, 3) + toHex(sn, 4)
+  if len(sn) = 7 then decodeCardSN = toHex(sn, 1) + toHex(sn, 2) + toHex(sn, 3) + toHex(sn, 4) + toHex(sn, 5) + toHex(sn, 6) + toHex(sn, 7)
+end function
+
+sub ttdevGetState
+  dim frame as string = tcpttGetInternalFrame
+  dim tmpCardNo as string(7)
+  
+  if (asc(frame) = 1) and (not devcommCardInField) then    
+    if asc(mid(frame, 2, 1)) = 1 then
+	  tmpCardNo = decodeCardSN(mid(frame, 4, 4))
+	end if
+    if asc(mid(frame, 2, 1)) = 3 then
+	  tmpCardNo = decodeCardSN(mid(frame, 4, 7))
+	end if
+	devcommCardInField = true
+    displayMessage("Karta KD:`" + tmpCardNo)
+	beep.play("B", pl_beep_canint)
+	devcommPleaseOpen = true
+  end if
+  
+  if (asc(frame) = 0) and devcommCardInField then
+    devcommCardInField = false
+  end if  
+end sub
+
+sub ttsdevTry
+  if not tcpttCanSend then exit sub
+  
+  if tcpttBusState = Discovery then
+    if tcpttIsNewFrameArrived then
+      tcpttDevIds(tcpttCurrentDevice) = tcpttCurrentDiscovery
+      tcpttDeviceCount = tcpttDeviceCount + 1
+      tcpttCurrentDevice = tcpttCurrentDevice + 1
+	end if
+	
+    tcpttCurrentDiscovery = tcpttCurrentDiscovery + 1
+    if tcpttCurrentDiscovery = 9 then
+	  tcpttBusState = Query
+	  tcpttCurrentDevice = 0
+	  exit sub
+	end if
+	tcpttDevIds(tcpttCurrentDevice) = tcpttCurrentDiscovery
+	tcpttSend(3, "")
+    'displayPrint(LCD_FIX_FONT, "ID: "+str(tcpttCurrentDiscovery), 60, 0)
+    'displayPrint(LCD_FIX_FONT, "no: "+str(tcpttDeviceCount), 60, 10)
+	exit sub
+  end if
+
+  '============================================ QUERY ====================
+  if tcpttDeviceCount = 0 then exit sub
+  
+  if tcpttIsNewFrameArrived then
+    if devcommLastQuery = GetState then ttdevGetState
+    if devcommLastQuery = OpenRelay then tcpttGetInternalFrame
+  end if
+
+  if devcommPleaseOpen then
+    ttdevReaderOpenRelay
+	exit sub
+  end if
+  
+  ttdevReaderGetState
+end sub
