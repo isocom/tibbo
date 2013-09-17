@@ -40,9 +40,11 @@ sub device_tr610_init
 
   device_watch_dog_reset1
   readerInit
-  rs232Init
+  'rs232Init
+  tcpttInit
   keypadInit(YES)
   device_tr610_initialized = true
+  setDeviceMode(In, false)
   displayShowClock(true)
 end sub
 
@@ -139,6 +141,7 @@ dim device_watch_dog_counter1 as dword = 1*60*2 ' one minute initial setting min
 sub device_watch_dog_reset1
   device_watch_dog_counter1 = 1*30*2 'ping every 30 seconds
 end sub
+
 sub device_watch_dog
   device_watch_dog_counter1 = device_watch_dog_counter1 - 1
   if device_tr610_initialized and (device_watch_dog_counter1 = 15*2) then gae_send_heart_beat1

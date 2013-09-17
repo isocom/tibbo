@@ -1,7 +1,6 @@
 include "global.tbh"
 
 dim deviceMode as Mode = In
-dim setBlinking as boolean = false
 
 '====================================================================
 
@@ -10,24 +9,13 @@ sub on_sys_init()
 end sub
 
 sub on_sys_timer()
+  device_tr610_init()
   device_watch_dog()
+
   dhcp_proc_timer()
   displayTimer()
   keypadTimer()
-  
-  device_tr610_init()
-  
-  if setBlinking then
-    keypadLEDBlink(KP_BUTTON_LU, false)
-    keypadLEDBlink(KP_BUTTON_LD, false)
-    keypadLEDBlink(KP_BUTTON_RU, false)
-    keypadLEDBlink(KP_BUTTON_RD, false)
-    if deviceMode = In then keypadLEDBlink(KP_BUTTON_LU, true)
-    if deviceMode = Out then keypadLEDBlink(KP_BUTTON_LD, true)
-    if deviceMode = TempIn then keypadLEDBlink(KP_BUTTON_RU, true)
-    if deviceMode = TempOut then keypadLEDBlink(KP_BUTTON_RD, true)
-	setBlinking = false
-  end if
+  tcpttTimer()
 end sub
 
 sub on_sock_data_arrival()
@@ -40,6 +28,7 @@ end sub
 sub on_ser_data_arrival()
   readerProcess
   rs232Process
+  tcpttProcess
 end sub
 
 sub on_sock_inband()
@@ -59,29 +48,48 @@ sub on_sock_inband()
   wend
 end sub
 
+sub setDeviceMode(newDeviceMode as Mode, verbose as boolean)
+  select case newDeviceMode
+    case in:
+	  if verbose then displayMessage("Rozpoczecie pracy")
+      deviceMode = In
+	  keypadLEDLit(kp_button_lu, true)
+	  keypadLEDLit(kp_button_ld, false)
+	  keypadLEDLit(kp_button_ru, false)
+	  keypadLEDLit(kp_button_rd, false)
+    case out:
+      if verbose then displayMessage("Zakonczenie pracy")
+	  deviceMode = Out
+	  keypadLEDLit(kp_button_lu, false)
+	  keypadLEDLit(kp_button_ld, true)
+	  keypadLEDLit(kp_button_ru, false)
+	  keypadLEDLit(kp_button_rd, false)
+    case tempin:
+	  if verbose then displayMessage("Powrot z wyjscia`sluzbowego")
+	  deviceMode = TempIn
+	  keypadLEDLit(kp_button_lu, false)
+	  keypadLEDLit(kp_button_ld, false)
+	  keypadLEDLit(kp_button_ru, true)
+	  keypadLEDLit(kp_button_rd, false)
+    case tempout:
+	  if verbose then displayMessage("Wyjscie sluzbowe")
+	  deviceMode = TempOut
+	  keypadLEDLit(kp_button_lu, false)
+	  keypadLEDLit(kp_button_ld, false)
+	  keypadLEDLit(kp_button_ru, false)
+	  keypadLEDLit(kp_button_rd, true)
+  end select
+end sub
+
 sub on_kp(key_event as pl_kp_event_codes, key_code as byte)
   dim key as KeypadKeyEnum = keypadOnKey(key_event, key_code)
   
-  if key_event <> PL_KP_EVENT_PRESSED then exit sub
+  if key_event <> PL_KP_EVENT_RELEASED then exit sub
   
-  if key = KP_BUTTON_LU then
-    displayMessage("Rozpoczecie pracy")
-	deviceMode = In
-  end if
-  if key = KP_BUTTON_LD then
-    displayMessage("Zakonczenie pracy")
-	deviceMode = Out
-  end if
-  if key = KP_BUTTON_RU then
-    displayMessage("Powrot z wyjscia`sluzbowego")
-	deviceMode = TempIn
-  end if
-  if key = KP_BUTTON_RD then
-    displayMessage("Wyjscie sluzbowe")
-	deviceMode = TempOut
-  end if
-  
-  setBlinking = true
+  if key = KP_BUTTON_LU then setDeviceMode(In, true)
+  if key = KP_BUTTON_LD then setDeviceMode(Out, true)
+  if key = KP_BUTTON_RU then setDeviceMode(TempIn, true)
+  if key = KP_BUTTON_RD then setDeviceMode(TempOut, true)
 end sub
 
 sub callback_new_card_detected(byref card_number as string)

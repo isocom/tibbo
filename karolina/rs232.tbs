@@ -1,6 +1,8 @@
 include "global.tbh"
 
 const RS232_PORT_NUM = 0
+
+dim rs232Initialized as boolean = false
 dim rs232_socket_num as byte = 255
 
 sub rs232Init
@@ -15,21 +17,20 @@ sub rs232Init
   sys.buffalloc
   ser.enabled = YES
   
-  rs232_socket_num = sock_get("GAE")
+  rs232_socket_num = sock_get("RS")
   sock.num = rs232_socket_num
+  sock.protocol = pl_sock_protocol_tcp
+  sock.inconmode = pl_sock_inconmode_any_ip_any_port
+  sock.localportlist = "4001"
   sock.rxbuffrq(5)
   sock.txbuffrq(5)
   sys.buffalloc
-  sock.protocol = pl_sock_protocol_tcp
-  sock.inconmode = pl_sock_inconmode_any_ip_any_port
-  sock.reconmode = pl_sock_reconmode_3
-  sock.connectiontout = 0
-  sock.acceptbcast = no
-  sock.targetbcast = no
-  sock.localportlist = "1001"
+  
+  rs232Initialized = true
 end sub
 
 sub rs232Process
+  if not rs232Initialized then exit sub
   if ser.num <> RS232_PORT_NUM then exit sub
 
   dim s as string
@@ -40,8 +41,11 @@ sub rs232Process
 end sub
 
 sub rs232ProcessSocket
+  if not rs232Initialized then exit sub
   if sock.num <> rs232_socket_num then exit sub
+
   dim s as string(32) = sock.getdata(32)
   ser.num = RS232_PORT_NUM
   ser.setdata(s)
+  ser.send
 end sub
