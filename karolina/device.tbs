@@ -41,7 +41,7 @@ sub device_tr610_init
   device_watch_dog_reset1
   readerInit
   'rs232Init
-  tcpttInit
+  'tcpttInit
   keypadInit(YES)
   device_tr610_initialized = true
   setDeviceMode(In, false)
@@ -153,8 +153,6 @@ end sub
 '====================================================================
 sub callback_dhcp_ok(renew as no_yes, interface as pl_sock_interfaces, byref ip as string, byref gateway_ip as string, byref netmask as string, lease_time as dword)
 'Callback procedure, informs of the successul procurement of configuration parameters from the DHCP server.
-  dim f as byte
- 
   #if NET_AVAILABLE
     if interface=PL_SOCK_INTERFACE_NET then
       if renew=YES and net.ip<>ip then

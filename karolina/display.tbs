@@ -291,10 +291,3 @@ sub showClock(x as byte, y as byte)
     displayPrint(LCD_FIX_FONT, t, x+0, y+25)
   end if
 end sub
-
-public sub displayDrawTTSoftLogo
-  displayPrint(LCD_STD_FONT, "ISOCOM Sp z o. o.", 5, 2)
-  displayPrint(LCD_FIX_FONT, "http://www.isocom.eu", 5, 12)
-  displayPrint(LCD_STD_FONT, "edziecko@isocom.eu", 5, 22)
-  lcd.line(0, 30, lcd.width-1, 30)
-end sub

@@ -12,17 +12,17 @@ sub on_sys_timer()
   device_tr610_init()
   device_watch_dog()
 
-  dhcp_proc_timer()
-  displayTimer()
-  keypadTimer()
-  tcpttTimer()
+  dhcp_proc_timer
+  displayTimer
+  keypadTimer
+  tcpttTimer
 end sub
 
 sub on_sock_data_arrival()
-  dhcp_proc_data()
-  dns_proc_data()
-  gae_proc_data()
-  rs232ProcessSocket()
+  dhcp_proc_data
+  dns_proc_data
+  gae_proc_data
+  rs232ProcessSocket
 end sub
 
 sub on_ser_data_arrival()

@@ -65,4 +65,6 @@ sub cmd_process(byref cmd as string)
   if command = "Display2" then cmd_process_display2(cmd)
   if command = "Display3" then cmd_process_display3(cmd)
   if command = "Display4" then cmd_process_display4(cmd)
+  if command = "StartTCPTT" then tcpttInit
+  if command = "StartRS232" then rs232Init
 end sub

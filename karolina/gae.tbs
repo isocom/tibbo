@@ -63,3 +63,8 @@ sub gae_send_card_detected1(byref card_sn as string, deviceMode as Mode)
   if deviceMode = TempOut then s = s + "&mode=TempOut"
   gae_send(s)
 end sub
+
+'sub gae_send_ttsbus_card1(byref card_sn as string, addr as byte)
+  'dim s as string = "?cmd=TTSoftCard&sn=" + device_getTibboSerialNumber + "&cn=" + card_sn + "&addr="
+  'gae_send(s)
+'end sub

@@ -174,20 +174,19 @@ end function
 '======================================================================================================
 '======================================================================================================
 '======================================================================================================
-dim devcommReaderLED as byte = 0 'miganie zielonej diody
-dim devcommCardInField as boolean = false
+dim devcommReaderLED(MAX_NO_OF_DEVICES) as byte 'miganie zielonej diody
+dim devcommCardInField(MAX_NO_OF_DEVICES) as boolean
 dim devcommLastQuery as TTSoftQuery
-dim devcommPleaseOpen as boolean = false
+dim devcommPleaseOpen(MAX_NO_OF_DEVICES) as boolean
 
 sub ttdevReaderGetState
-  devcommReaderLED = devcommReaderLED + 1
-  tcpttSend(1, chr(1)+chr(devcommReaderLED mod 2))
+  devcommReaderLED(tcpttCurrentDevice) = devcommReaderLED(tcpttCurrentDevice) + 1
+  tcpttSend(1, chr(1)+chr(devcommReaderLED(tcpttCurrentDevice) mod 2))
   devcommLastQuery = GetState
 end sub
 
 sub ttdevReaderOpenRelay
-  devcommPleaseOpen = false
-  devcommReaderLED = devcommReaderLED + 1
+  devcommPleaseOpen(tcpttCurrentDevice) = false
   tcpttSend(1, chr(2)+chr(2*10*4))
   devcommLastQuery = OpenRelay
 end sub
@@ -211,27 +210,28 @@ sub ttdevGetState
   dim frame as string = tcpttGetInternalFrame
   dim tmpCardNo as string(7)
   
-  if (asc(frame) = 1) and (not devcommCardInField) then    
+  if (asc(frame) = 1) and (not devcommCardInField(tcpttCurrentDevice)) then    
     if asc(mid(frame, 2, 1)) = 1 then
 	  tmpCardNo = decodeCardSN(mid(frame, 4, 4))
 	end if
     if asc(mid(frame, 2, 1)) = 3 then
 	  tmpCardNo = decodeCardSN(mid(frame, 4, 7))
 	end if
-	devcommCardInField = true
+	devcommCardInField(tcpttCurrentDevice) = true
     displayMessage("Karta KD:`" + tmpCardNo)
 	beep.play("B", pl_beep_canint)
-	devcommPleaseOpen = true
+	devcommPleaseOpen(tcpttCurrentDevice) = true
   end if
   
-  if (asc(frame) = 0) and devcommCardInField then
-    devcommCardInField = false
+  if (asc(frame) = 0) and devcommCardInField(tcpttCurrentDevice) then
+    devcommCardInField(tcpttCurrentDevice) = false
   end if  
 end sub
 
 sub ttsdevTry
   if not tcpttCanSend then exit sub
   
+  '======================================== DISCOVERY ====================
   if tcpttBusState = Discovery then
     if tcpttIsNewFrameArrived then
       tcpttDevIds(tcpttCurrentDevice) = tcpttCurrentDiscovery
@@ -242,6 +242,7 @@ sub ttsdevTry
     tcpttCurrentDiscovery = tcpttCurrentDiscovery + 1
     if tcpttCurrentDiscovery = 9 then
 	  tcpttBusState = Query
+	  tcpttCurrentDiscovery = tcpttCurrentDevice - 1 'now max index
 	  tcpttCurrentDevice = 0
 	  exit sub
 	end if
@@ -257,10 +258,13 @@ sub ttsdevTry
   
   if tcpttIsNewFrameArrived then
     if devcommLastQuery = GetState then ttdevGetState
-    if devcommLastQuery = OpenRelay then tcpttGetInternalFrame
+    if devcommLastQuery = OpenRelay then tcpttGetInternalFrame	
+
+    tcpttCurrentDevice = tcpttCurrentDevice + 1 'fine to query next device
+	if tcpttCurrentDevice > tcpttCurrentDiscovery then tcpttCurrentDevice = 0
   end if
 
-  if devcommPleaseOpen then
+  if devcommPleaseOpen(tcpttCurrentDevice) then
     ttdevReaderOpenRelay
 	exit sub
   end if
