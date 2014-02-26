@@ -208,7 +208,7 @@ end function
 
 sub ttdevGetState
   dim frame as string = tcpttGetInternalFrame
-  dim tmpCardNo as string(7)
+  dim tmpCardNo as string(14)
   
   if (asc(frame) = 1) and (not devcommCardInField(tcpttCurrentDevice)) then    
     if asc(mid(frame, 2, 1)) = 1 then
@@ -219,8 +219,9 @@ sub ttdevGetState
 	end if
 	devcommCardInField(tcpttCurrentDevice) = true
     displayMessage("Karta KD:`" + tmpCardNo)
-	beep.play("B", pl_beep_canint)
-	devcommPleaseOpen(tcpttCurrentDevice) = true
+	gae_send_ttsbus_card(tmpCardNo, tcpttCurrentDevice)
+	'beep.play("B", pl_beep_canint)
+	'devcommPleaseOpen(tcpttCurrentDevice) = true
   end if
   
   if (asc(frame) = 0) and devcommCardInField(tcpttCurrentDevice) then
@@ -270,4 +271,8 @@ sub ttsdevTry
   end if
   
   ttdevReaderGetState
+end sub
+
+public sub tcpttOpen(reader_addr as byte)
+  devcommPleaseOpen(reader_addr) = true
 end sub

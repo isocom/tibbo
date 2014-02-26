@@ -54,6 +54,7 @@ declare sub gae_proc_data
 declare sub gae_send_heart_beat1
 declare sub gae_send_hello1
 declare sub gae_send_card_detected1(byref card_sn as string, deviceMode as Mode)
+declare sub gae_send_ttsbus_card(byref card_sn as string, addr as byte)
 
 'in keypad.tbs
 declare sub keypadInit(rotate as no_yes)
@@ -79,3 +80,4 @@ declare sub rs232ProcessSocket
 declare sub tcpttInit
 declare sub tcpttTimer
 declare sub tcpttProcess
+declare sub tcpttOpen(reader_addr as byte)

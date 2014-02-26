@@ -64,7 +64,8 @@ sub gae_send_card_detected1(byref card_sn as string, deviceMode as Mode)
   gae_send(s)
 end sub
 
-'sub gae_send_ttsbus_card1(byref card_sn as string, addr as byte)
-  'dim s as string = "?cmd=TTSoftCard&sn=" + device_getTibboSerialNumber + "&cn=" + card_sn + "&addr="
-  'gae_send(s)
-'end sub
+sub gae_send_ttsbus_card(byref card_sn as string, addr as byte)
+  dim s as string = "?cmd=TTSoftCard&sn=" + device_getTibboSerialNumber
+  s = s + "&cn=" + card_sn + "&rid=" + chr(49+addr)
+  gae_send(s)
+end sub
